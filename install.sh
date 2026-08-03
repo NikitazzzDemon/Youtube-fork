@@ -335,14 +335,13 @@ if systemctl is-active --quiet nginx 2>/dev/null; then
 fi
 fuser -k 80/tcp 2>/dev/null || true
 
-if [ "$USE_TLS_INTERNAL" = "yes" ]; then
+if [ "$USE_TLS_INTERNAL" = "yes" ] || [ "$HTTPS_PORT" -ne 443 ]; then
   cat <<EOF > /etc/caddy/Caddyfile
-# GlassTube Caddy Proxy Configuration (Internal SSL / Cloudflare Proxy)
+# GlassTube Caddy Proxy Configuration (HTTP & Custom HTTPS Port)
 {
     auto_https disable_redirects
 }
 
-# Plain HTTP endpoint
 http://${DOMAIN}:${HTTP_PORT} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
@@ -353,7 +352,6 @@ http://${DOMAIN}:${HTTP_PORT} {
     }
 }
 
-# HTTPS endpoint with self-signed SSL
 https://${DOMAIN}:${HTTPS_PORT} {
     tls internal
     reverse_proxy 127.0.0.1:${APP_PORT} {
@@ -367,12 +365,8 @@ https://${DOMAIN}:${HTTPS_PORT} {
 EOF
 else
   cat <<EOF > /etc/caddy/Caddyfile
-# GlassTube Caddy Proxy Configuration (HTTP Port 80 / Custom Ports)
-{
-    auto_https off
-}
-
-http://${DOMAIN}:${HTTP_PORT} {
+# GlassTube Caddy Proxy Configuration (Let's Encrypt Auto-SSL on standard ports)
+${DOMAIN} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote.host}
