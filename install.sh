@@ -54,10 +54,10 @@ mkdir -p "$INSTALL_DIR/data"
 cd "$INSTALL_DIR" 2>/dev/null || true
 
 # Ensure basic resolution & network diagnostic tools are present
-echo -e "${CYAN}[Init] Updating package index & ensuring core utilities (curl, ss, dnsutils)...${NC}"
+echo -e "${CYAN}[Init] Updating package index & ensuring core utilities (curl, ss, dnsutils, git)...${NC}"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y -q >/dev/null 2>&1 || true
-apt-get install -y -q curl net-tools iproute2 dnsutils ufw ca-certificates >/dev/null 2>&1 || true
+apt-get install -y -q curl net-tools iproute2 dnsutils ufw ca-certificates git >/dev/null 2>&1 || true
 
 # Function to validate integer port range
 validate_port() {
@@ -276,6 +276,21 @@ INSTALL_DIR="/opt/glasstube"
 echo -e "${GREEN}[4/5] Deploying GlassTube container files to ${INSTALL_DIR}...${NC}"
 
 mkdir -p "$INSTALL_DIR/data"
+
+# Check if running script inside existing cloned repo directory
+if [ -f "./package.json" ] && [ -f "./Dockerfile" ]; then
+  echo -e "${CYAN}  Copying source code files into ${INSTALL_DIR}...${NC}"
+  cp -r ./* "$INSTALL_DIR/" 2>/dev/null || true
+elif [ ! -f "$INSTALL_DIR/package.json" ]; then
+  echo -e "${CYAN}  Cloning GlassTube source repository from GitHub...${NC}"
+  git clone https://github.com/NikitazzzDemon/Youtube-fork.git "$INSTALL_DIR" 2>/dev/null || {
+    curl -fsSL https://github.com/NikitazzzDemon/Youtube-fork/archive/refs/heads/main.tar.gz | tar -xz -C "$INSTALL_DIR" --strip-components=1
+  }
+else
+  echo -e "${CYAN}  Updating GlassTube source code from GitHub...${NC}"
+  (cd "$INSTALL_DIR" && git pull origin main 2>/dev/null || true)
+fi
+
 cd "$INSTALL_DIR"
 
 JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "gt_vps_secret_$(date +%s)")
@@ -290,26 +305,20 @@ EOF
 cat <<EOF > "$INSTALL_DIR/docker-compose.yml"
 services:
   glasstube:
-    image: node:20-slim
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: glasstube_vps
-    working_dir: /app
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - ./data:/app/data
+    restart: always
     ports:
       - "127.0.0.1:${APP_PORT}:${APP_PORT}"
     environment:
       - NODE_ENV=production
       - PORT=${APP_PORT}
       - JWT_SECRET=${JWT_SECRET}
-    command: sh -c "npm install && npm run build && npm start"
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT}/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./data:/app/data
 EOF
 
 # 5. Configure Caddy & Launch
@@ -397,8 +406,24 @@ fi
 
 systemctl restart caddy
 
+echo -e "${CYAN}  Building Docker image and starting GlassTube container (this may take ~1-2 min on first run)...${NC}"
 docker compose down --remove-orphans 2>/dev/null || true
-docker compose up -d
+docker compose up --build -d
+
+echo -e "${CYAN}  Waiting for GlassTube server to respond on port ${APP_PORT}...${NC}"
+WAIT_COUNT=0
+until curl -sSL -f "http://127.0.0.1:${APP_PORT}/" >/dev/null 2>&1 || curl -sSL -f "http://127.0.0.1:${APP_PORT}/api/vps/stats" >/dev/null 2>&1 || [ $WAIT_COUNT -ge 60 ]; do
+  sleep 2
+  WAIT_COUNT=$((WAIT_COUNT + 2))
+  echo -n "."
+done
+echo ""
+
+if [ $WAIT_COUNT -lt 60 ]; then
+  echo -e "${GREEN}  ✓ Backend container is alive and responding on port ${APP_PORT}!${NC}"
+else
+  echo -e "${YELLOW}  ! Backend container is taking longer than expected to build/start. Check logs with: docker compose logs -f${NC}"
+fi
 
 echo -e "\n${CYAN}${BOLD}========================================================================"
 echo "      GlassTube VPS Proxy - Installation Completed Successfully!        "
@@ -411,6 +436,15 @@ else
 fi
 echo -e "${GREEN}  ✓ HTTP Direct Access:    ${BOLD} http://$DOMAIN:$HTTP_PORT${NC}"
 echo -e "${GREEN}  ✓ Internal App Port:     ${BOLD} $APP_PORT${NC}"
+
+if [ "$USE_TLS_INTERNAL" = "yes" ]; then
+  echo ""
+  echo -e "${YELLOW}${BOLD}⚠️  CLOUDFLARE SETTING REQUIRED TO FIX 502 BAD GATEWAY:${NC}"
+  echo -e "  Go to Cloudflare Dashboard -> ${BOLD}SSL/TLS${NC} -> ${BOLD}Overview${NC}"
+  echo -e "  Set SSL/TLS Encryption Mode to: ${GREEN}${BOLD}Full${NC} (or ${GREEN}${BOLD}Full (strict)${NC} if using origin cert)"
+  echo -e "  ${RED}Do NOT use 'Flexible'${NC} (causes 502 Bad Gateway because Cloudflare connects over HTTP to HTTPS port)."
+fi
+
 echo ""
 echo -e "${YELLOW}Useful Commands:${NC}"
 echo -e "  - View Live Caddy SSL Logs: ${BOLD}journalctl -u caddy -f${NC}"
