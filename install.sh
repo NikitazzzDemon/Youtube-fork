@@ -80,11 +80,14 @@ is_port_in_use() {
   fi
 }
 
-echo -e "\n${BOLD}${MAGENTA}--- STEP 1: PORT CONFIGURATION & VERIFICATION ---${NC}\n"
+echo -e "\n${BOLD}${MAGENTA}--- STEP 1: PORT CONFIGURATION & VERIFICATION ---${NC}"
+echo -e "${CYAN}Note for Cloudflare Users (Orange Cloud 🧡):${NC}"
+echo -e "Cloudflare HTTPS supported ports: ${BOLD}443, 8443, 2053, 2083, 2087, 2096${NC}"
+echo -e "Cloudflare HTTP supported ports:  ${BOLD}80, 8080, 8880, 2052, 2082, 2086, 2092${NC}\n"
 
 # Prompt & Validate HTTP Port
 while true; do
-  read -p "Enter HTTP Port [Default: 80]: " INPUT_HTTP
+  read -p "Enter HTTP Port [Default: 80, CF: 8080]: " INPUT_HTTP
   HTTP_PORT="${INPUT_HTTP:-80}"
   if validate_port "$HTTP_PORT"; then
     echo -e "${GREEN}  ✓ Port $HTTP_PORT is valid.${NC}"
@@ -96,7 +99,7 @@ done
 
 # Prompt & Validate HTTPS Port
 while true; do
-  read -p "Enter HTTPS Port [Default: 443]: " INPUT_HTTPS
+  read -p "Enter HTTPS Port [Default: 443, CF: 8443]: " INPUT_HTTPS
   HTTPS_PORT="${INPUT_HTTPS:-443}"
   if ! validate_port "$HTTPS_PORT"; then
     echo -e "${RED}  ✗ Invalid port number. Enter a number between 1 and 65535.${NC}"
@@ -173,13 +176,52 @@ while true; do
       if [ -n "$RESOLVED_IP" ]; then
         echo -e "${GREEN}  ✓ DNS Resolution Success: $DOMAIN -> $RESOLVED_IP${NC}"
         if [ "$RESOLVED_IP" = "$SERVER_IP" ]; then
-          echo -e "${GREEN}  ✓ Excellent! Domain points directly to this VPS IP ($SERVER_IP). Caddy Auto-SSL will work instantly.${NC}"
+          echo -e "${GREEN}  ✓ Direct IP match! Domain points straight to this VPS ($SERVER_IP).${NC}"
         else
-          echo -e "${YELLOW}  ! Note: Server public IP is $SERVER_IP, domain resolved to $RESOLVED_IP. Ensure your A record is correct.${NC}"
+          echo -e "${YELLOW}  ! Note: VPS IP is $SERVER_IP, domain resolves to $RESOLVED_IP (likely Cloudflare Proxy 🧡 or external DNS).${NC}"
         fi
       else
-        echo -e "${YELLOW}  ! Warning: $DOMAIN does not resolve to an IP yet. Make sure your DNS A-Record points to this VPS.${NC}"
+        echo -e "${YELLOW}  ! Warning: $DOMAIN does not resolve to an IP yet. Ensure your A record is configured.${NC}"
       fi
+
+      echo -e "\n${CYAN}--- SSL & Proxy Configuration Mode ---${NC}"
+      echo -e "Is this domain routed through Cloudflare Proxy (Orange Cloud 🧡)?"
+      read -p "Use Cloudflare Proxy Mode? (y/N) [Default: n]: " IS_CF_INPUT
+      IS_CF=$(echo "${IS_CF_INPUT:-n}" | tr '[:upper:]' '[:lower:]')
+
+      USE_TLS_INTERNAL="no"
+      if [[ "$IS_CF" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}  ✓ Cloudflare Proxy Mode Selected.${NC}"
+        
+        # Check if non-supported Cloudflare ports were chosen
+        if [ "$HTTPS_PORT" -ne 443 ] && [ "$HTTPS_PORT" -ne 8443 ] && [ "$HTTPS_PORT" -ne 2053 ] && [ "$HTTPS_PORT" -ne 2083 ] && [ "$HTTPS_PORT" -ne 2087 ] && [ "$HTTPS_PORT" -ne 2096 ]; then
+          echo -e "${RED}[WARNING] Port $HTTPS_PORT is NOT supported by Cloudflare Proxy!${NC}"
+          echo -e "${YELLOW}Cloudflare Proxy only forwards HTTPS on ports: 443, 8443, 2053, 2083, 2087, 2096.${NC}"
+          echo -e "${YELLOW}If you keep port $HTTPS_PORT, Cloudflare will drop connections (ERR_CONNECTION_CLOSED).${NC}"
+          read -p "Would you like to reset HTTPS Port to 443 for Cloudflare compatibility? (Y/n): " RESET_PORT_INPUT
+          RESET_PORT=$(echo "${RESET_PORT_INPUT:-y}" | tr '[:upper:]' '[:lower:]')
+          if [[ "$RESET_PORT" =~ ^[Yy]$ ]]; then
+            HTTPS_PORT=443
+            HTTP_PORT=80
+            echo -e "${GREEN}  ✓ Reset HTTPS port to 443 and HTTP port to 80.${NC}"
+          fi
+        fi
+
+        echo -e "\nHow should Caddy handle HTTPS on your VPS behind Cloudflare?"
+        echo -e "  ${BOLD}1) Cloudflare FULL SSL Mode (Recommended)${NC} - Uses Caddy internal SSL ('tls internal'). Cloudflare handles public SSL."
+        echo -e "  ${BOLD}2) Let's Encrypt Direct ACME${NC} - Requires Cloudflare record set to 'DNS Only' (Gray Cloud ☁️)."
+        read -p "Select Mode [1/2, Default: 1]: " CF_MODE_INPUT
+        CF_MODE="${CF_MODE_INPUT:-1}"
+        if [ "$CF_MODE" = "1" ]; then
+          USE_TLS_INTERNAL="yes"
+          echo -e "${GREEN}  ✓ Configured Caddy with 'tls internal' for Cloudflare FULL SSL Mode.${NC}"
+        else
+          echo -e "${YELLOW}  ! Remember to change Cloudflare DNS record to 'DNS Only' (Gray Cloud) so Let's Encrypt can validate.${NC}"
+        fi
+      else
+        echo -e "${GREEN}  ✓ Standard Direct VPS Mode Selected (Caddy Let's Encrypt Auto-SSL).${NC}"
+      fi
+
       break
     else
       echo -e "${RED}  ✗ Invalid domain format. Example format: tube.yourdomain.com${NC}"
@@ -276,6 +318,11 @@ if [ "$HTTPS_PORT" -ne 443 ]; then
   CADDY_SITE_HEADER="https://${DOMAIN}:${HTTPS_PORT}"
 fi
 
+TLS_DIRECTIVE=""
+if [ "$USE_TLS_INTERNAL" = "yes" ]; then
+  TLS_DIRECTIVE="tls internal"
+fi
+
 cat <<EOF > /etc/caddy/Caddyfile
 # GlassTube Caddy Proxy Configuration
 {
@@ -284,6 +331,7 @@ cat <<EOF > /etc/caddy/Caddyfile
 }
 
 $CADDY_SITE_HEADER {
+    $TLS_DIRECTIVE
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote.host}
