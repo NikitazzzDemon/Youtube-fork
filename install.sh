@@ -81,6 +81,8 @@ is_port_in_use() {
 }
 
 echo -e "\n${BOLD}${MAGENTA}--- STEP 1: PORT CONFIGURATION & VERIFICATION ---${NC}"
+echo -e "${CYAN}Tip: To access your site directly (e.g. https://yourdomain.com) WITHOUT typing a port number in your browser, use standard ports:${NC}"
+echo -e "  ${BOLD}HTTP Port: 80 | HTTPS Port: 443${NC}\n"
 echo -e "${CYAN}Note for Cloudflare Users (Orange Cloud 🧡):${NC}"
 echo -e "Cloudflare HTTPS supported ports: ${BOLD}443, 8443, 2053, 2083, 2087, 2096${NC}"
 echo -e "Cloudflare HTTP supported ports:  ${BOLD}80, 8080, 8880, 2052, 2082, 2086, 2092${NC}\n"
@@ -185,41 +187,50 @@ while true; do
       fi
 
       echo -e "\n${CYAN}--- SSL & Proxy Configuration Mode ---${NC}"
-      echo -e "Is this domain routed through Cloudflare Proxy (Orange Cloud 🧡)?"
-      read -p "Use Cloudflare Proxy Mode? (y/N) [Default: n]: " IS_CF_INPUT
-      IS_CF=$(echo "${IS_CF_INPUT:-n}" | tr '[:upper:]' '[:lower:]')
+      DEFAULT_CF="n"
+      if [ -n "$RESOLVED_IP" ] && [ "$RESOLVED_IP" != "$SERVER_IP" ]; then
+        DEFAULT_CF="y"
+        echo -e "${YELLOW}  ! Domain resolves to Cloudflare Proxy IP ($RESOLVED_IP). Cloudflare Proxy Mode is recommended.${NC}"
+      fi
+
+      read -p "Use Cloudflare Proxy Mode? (y/N) [Default: $DEFAULT_CF]: " IS_CF_INPUT
+      IS_CF_ANSWER="${IS_CF_INPUT:-$DEFAULT_CF}"
+      IS_CF=$(echo "$IS_CF_ANSWER" | tr '[:upper:]' '[:lower:]')
 
       USE_TLS_INTERNAL="no"
       if [[ "$IS_CF" =~ ^[Yy]$ ]]; then
         echo -e "${GREEN}  ✓ Cloudflare Proxy Mode Selected.${NC}"
         
-        # Check if non-supported Cloudflare ports were chosen
         if [ "$HTTPS_PORT" -ne 443 ] && [ "$HTTPS_PORT" -ne 8443 ] && [ "$HTTPS_PORT" -ne 2053 ] && [ "$HTTPS_PORT" -ne 2083 ] && [ "$HTTPS_PORT" -ne 2087 ] && [ "$HTTPS_PORT" -ne 2096 ]; then
           echo -e "${RED}[WARNING] Port $HTTPS_PORT is NOT supported by Cloudflare Proxy!${NC}"
-          echo -e "${YELLOW}Cloudflare Proxy only forwards HTTPS on ports: 443, 8443, 2053, 2083, 2087, 2096.${NC}"
-          echo -e "${YELLOW}If you keep port $HTTPS_PORT, Cloudflare will drop connections (ERR_CONNECTION_CLOSED).${NC}"
-          read -p "Would you like to reset HTTPS Port to 443 for Cloudflare compatibility? (Y/n): " RESET_PORT_INPUT
+          echo -e "${YELLOW}Cloudflare HTTPS proxy only supports ports: 443, 8443, 2053, 2083, 2087, 2096.${NC}"
+          read -p "Would you like to reset HTTPS Port to 2053 for Cloudflare compatibility? (Y/n): " RESET_PORT_INPUT
           RESET_PORT=$(echo "${RESET_PORT_INPUT:-y}" | tr '[:upper:]' '[:lower:]')
           if [[ "$RESET_PORT" =~ ^[Yy]$ ]]; then
-            HTTPS_PORT=443
-            HTTP_PORT=80
-            echo -e "${GREEN}  ✓ Reset HTTPS port to 443 and HTTP port to 80.${NC}"
+            HTTPS_PORT=2053
+            HTTP_PORT=2052
+            echo -e "${GREEN}  ✓ Reset HTTPS port to 2053 and HTTP port to 2052 (Cloudflare Compatible).${NC}"
           fi
         fi
 
-        echo -e "\nHow should Caddy handle HTTPS on your VPS behind Cloudflare?"
-        echo -e "  ${BOLD}1) Cloudflare FULL SSL Mode (Recommended)${NC} - Uses Caddy internal SSL ('tls internal'). Cloudflare handles public SSL."
-        echo -e "  ${BOLD}2) Let's Encrypt Direct ACME${NC} - Requires Cloudflare record set to 'DNS Only' (Gray Cloud ☁️)."
-        read -p "Select Mode [1/2, Default: 1]: " CF_MODE_INPUT
-        CF_MODE="${CF_MODE_INPUT:-1}"
-        if [ "$CF_MODE" = "1" ]; then
-          USE_TLS_INTERNAL="yes"
-          echo -e "${GREEN}  ✓ Configured Caddy with 'tls internal' for Cloudflare FULL SSL Mode.${NC}"
-        else
-          echo -e "${YELLOW}  ! Remember to change Cloudflare DNS record to 'DNS Only' (Gray Cloud) so Let's Encrypt can validate.${NC}"
-        fi
+        USE_TLS_INTERNAL="yes"
+        echo -e "${GREEN}  ✓ Configured Caddy with 'tls internal' for Cloudflare FULL SSL Mode.${NC}"
       else
-        echo -e "${GREEN}  ✓ Standard Direct VPS Mode Selected (Caddy Let's Encrypt Auto-SSL).${NC}"
+        echo -e "${GREEN}  ✓ Direct VPS Mode Selected (DNS Only / No Cloudflare Proxy).${NC}"
+        echo -e "\nSelect SSL Certificate Issue Mode:"
+        echo -e "  ${BOLD}1) Let's Encrypt Official Auto-SSL (Recommended)${NC} - Valid green lock in all browsers."
+        echo -e "     (Requires Port 80 to be open for domain validation)."
+        echo -e "  ${BOLD}2) Internal Self-Signed SSL (tls internal)${NC} - For VPS with blocked Port 80."
+        read -p "Select SSL Mode [1/2, Default: 1]: " SSL_MODE_INPUT
+        SSL_MODE="${SSL_MODE_INPUT:-1}"
+        
+        if [ "$SSL_MODE" = "2" ]; then
+          USE_TLS_INTERNAL="yes"
+          echo -e "${YELLOW}  ! Using 'tls internal' self-signed SSL certificate.${NC}"
+        else
+          USE_TLS_INTERNAL="no"
+          echo -e "${GREEN}  ✓ Using Let's Encrypt Official Auto-SSL.${NC}"
+        fi
       fi
 
       break
@@ -234,8 +245,9 @@ echo -e "\n${BOLD}${MAGENTA}--- STEP 3: AUTOMATIC UNATTENDED INSTALLATION ---${N
 echo -e "${CYAN}All parameters verified. Starting automated deployment now...${NC}\n"
 
 # 1. Configure UFW Firewall for user-selected ports
-echo -e "${GREEN}[1/5] Configuring UFW Firewall for Ports (SSH 22, HTTP $HTTP_PORT, HTTPS $HTTPS_PORT, App $APP_PORT)...${NC}"
+echo -e "${GREEN}[1/5] Configuring UFW Firewall for Ports (SSH 22, HTTP 80/ACME, HTTP $HTTP_PORT, HTTPS $HTTPS_PORT, App $APP_PORT)...${NC}"
 ufw allow 22/tcp comment 'SSH' >/dev/null 2>&1 || true
+ufw allow 80/tcp comment 'Let Encrypt ACME' >/dev/null 2>&1 || true
 ufw allow "$HTTP_PORT/tcp" comment 'GlassTube HTTP' >/dev/null 2>&1 || true
 ufw allow "$HTTPS_PORT/tcp" comment 'GlassTube HTTPS' >/dev/null 2>&1 || true
 ufw allow "$APP_PORT/tcp" comment 'GlassTube App Internal' >/dev/null 2>&1 || true
@@ -313,25 +325,28 @@ if systemctl is-active --quiet nginx 2>/dev/null; then
   systemctl disable nginx 2>/dev/null || true
 fi
 
-CADDY_SITE_HEADER="$DOMAIN"
-if [ "$HTTPS_PORT" -ne 443 ]; then
-  CADDY_SITE_HEADER="https://${DOMAIN}:${HTTPS_PORT}"
-fi
-
-TLS_DIRECTIVE=""
 if [ "$USE_TLS_INTERNAL" = "yes" ]; then
-  TLS_DIRECTIVE="tls internal"
-fi
-
-cat <<EOF > /etc/caddy/Caddyfile
-# GlassTube Caddy Proxy Configuration
+  cat <<EOF > /etc/caddy/Caddyfile
+# GlassTube Caddy Proxy Configuration (Cloudflare Proxy / Internal SSL)
 {
     http_port $HTTP_PORT
     https_port $HTTPS_PORT
 }
 
-$CADDY_SITE_HEADER {
-    $TLS_DIRECTIVE
+# Plain HTTP endpoint (prevents ERR_TOO_MANY_REDIRECTS if Cloudflare SSL is Flexible)
+http://${DOMAIN}:${HTTP_PORT} {
+    reverse_proxy 127.0.0.1:${APP_PORT} {
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote.host}
+        header_up X-Forwarded-For {http.request.remote.host}
+        header_up X-Forwarded-Proto {http.request.scheme}
+        flush_interval -1
+    }
+}
+
+# HTTPS endpoint with self-signed SSL (for Cloudflare SSL Full / Full Strict mode)
+https://${DOMAIN}:${HTTPS_PORT} {
+    tls internal
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote.host}
@@ -341,6 +356,44 @@ $CADDY_SITE_HEADER {
     }
 }
 EOF
+else
+  CADDY_SITE_HEADER="$DOMAIN"
+  if [ "$HTTPS_PORT" -ne 443 ]; then
+    CADDY_SITE_HEADER="https://${DOMAIN}:${HTTPS_PORT}"
+  fi
+
+  cat <<EOF > /etc/caddy/Caddyfile
+# GlassTube Caddy Proxy Configuration (Let's Encrypt Official Auto-SSL)
+{
+    https_port $HTTPS_PORT
+}
+
+$CADDY_SITE_HEADER {
+    reverse_proxy 127.0.0.1:${APP_PORT} {
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote.host}
+        header_up X-Forwarded-For {http.request.remote.host}
+        header_up X-Forwarded-Proto {http.request.scheme}
+        flush_interval -1
+    }
+}
+EOF
+
+  if [ "$HTTP_PORT" -ne 80 ]; then
+    cat <<EOF >> /etc/caddy/Caddyfile
+
+http://${DOMAIN}:${HTTP_PORT} {
+    reverse_proxy 127.0.0.1:${APP_PORT} {
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote.host}
+        header_up X-Forwarded-For {http.request.remote.host}
+        header_up X-Forwarded-Proto {http.request.scheme}
+        flush_interval -1
+    }
+}
+EOF
+  fi
+fi
 
 systemctl restart caddy
 
