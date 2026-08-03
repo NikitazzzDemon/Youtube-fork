@@ -1,0 +1,6 @@
+{
+  "name": "GlassTube Private Client",
+  "description": "Private full-stack YouTube proxy client with Glassmorphic & Neumorphic UI, media proxy stream, private auth, search, history, and channel views.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply font-sans antialiased selection:bg-black selection:text-white overflow-x-hidden transition-colors duration-300;
+  }
+}
+
+/* DARK THEME (Default) */
+html.dark-theme body,
+html:not(.light-theme) body {
+  background-color: #08080a;
+  color: #f4f4f5;
+  background-image: 
+    radial-gradient(at 15% 15%, rgba(255, 255, 255, 0.05) 0px, transparent 55%),
+    radial-gradient(at 85% 20%, rgba(255, 255, 255, 0.04) 0px, transparent 50%),
+    radial-gradient(at 50% 85%, rgba(255, 255, 255, 0.03) 0px, transparent 60%);
+  background-attachment: fixed;
+}
+
+/* LIGHT THEME */
+html.light-theme body {
+  background-color: #eef2f6;
+  color: #0f172a;
+  background-image: 
+    radial-gradient(at 10% 10%, rgba(255, 255, 255, 0.9) 0px, transparent 50%),
+    radial-gradient(at 90% 15%, rgba(220, 230, 242, 0.8) 0px, transparent 50%),
+    radial-gradient(at 50% 80%, rgba(235, 240, 248, 0.9) 0px, transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Glassmorphism Classes for Dark Theme */
+html.dark-theme .glass-panel,
+html:not(.light-theme) .glass-panel {
+  background: rgba(18, 18, 22, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+html.dark-theme .glass-panel-interactive,
+html:not(.light-theme) .glass-panel-interactive {
+  background: rgba(24, 24, 28, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.dark-theme .glass-panel-interactive:hover,
+html:not(.light-theme) .glass-panel-interactive:hover {
+  background: rgba(38, 38, 44, 0.85);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 12px 35px -10px rgba(255, 255, 255, 0.1), 0 0 20px rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+html.dark-theme .glass-input,
+html:not(.light-theme) .glass-input {
+  background: rgba(24, 24, 28, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+}
+
+html.dark-theme .neu-pill,
+html:not(.light-theme) .neu-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e4e4e7;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+html.dark-theme .neu-pill-active,
+html:not(.light-theme) .neu-pill-active,
+html.dark-theme .neu-pill-active-glow,
+html:not(.light-theme) .neu-pill-active-glow {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.5);
+  border-radius: 9999px;
+}
+
+/* Glassmorphism Classes for Light Theme */
+html.light-theme .glass-panel {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+
+html.light-theme .glass-panel-interactive {
+  background: rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.06), inset 0 1px 2px rgba(255, 255, 255, 0.95);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.light-theme .glass-panel-interactive:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 1);
+  box-shadow: 0 12px 35px -5px rgba(15, 23, 42, 0.12), 0 0 20px rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+}
+
+html.light-theme .glass-input {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px rgba(255, 255, 255, 0.8);
+  color: #0f172a;
+}
+
+html.light-theme .glass-input:focus {
+  border-color: rgba(15, 23, 42, 0.5);
+  box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 0 15px rgba(15, 23, 42, 0.12);
+  outline: none;
+}
+
+html.light-theme .neu-pill {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #334155;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  border-radius: 9999px;
+}
+
+html.light-theme .neu-pill:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.2);
+  color: #0f172a;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+html.light-theme .neu-pill-active,
+html.light-theme .neu-pill-active-glow {
+  background: #0f172a;
+  color: #ffffff;
+  border: 1px solid #0f172a;
+  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.25);
+  border-radius: 9999px;
+}
+
+/* Custom Soft Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 120, 0.5);
+}
+
+/* Utility to hide scrollbars for horizontal pill bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

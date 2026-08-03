@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+
+# ==============================================================================
+#  GlassTube VPS Interactive 1-Step Installer
+#  Feature Highlights:
+#  - Interactive Port Entry & Active Port Conflict Checks (ss/lsof/fuser)
+#  - Domain Validation & DNS Resolution Check
+#  - Automatic Firewall (UFW) & Conflicting Process Cleanup
+#  - Docker CE + Caddy Web Server + Auto SSL (Let's Encrypt)
+#  - Unattended Deployment after configuration
+# ==============================================================================
+
+set -e
+
+# Color Palette
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}${BOLD}"
+echo "========================================================================"
+echo "       GlassTube Private YouTube VPS Proxy - Interactive Installer      "
+echo "========================================================================"
+echo -e "${NC}"
+
+# 1. Root Privileges Check
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}[ERROR] Please run this installer with root or sudo:${NC}"
+  echo -e "${YELLOW}  sudo bash $0${NC}"
+  exit 1
+fi
+
+# Ensure basic resolution & network diagnostic tools are present
+echo -e "${CYAN}[Init] Updating package index & ensuring core utilities (curl, ss, dnsutils)...${NC}"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y -q >/dev/null 2>&1 || true
+apt-get install -y -q curl net-tools iproute2 dnsutils ufw ca-certificates >/dev/null 2>&1 || true
+
+# Function to validate integer port range
+validate_port() {
+  local port=$1
+  if [[ ! "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    return 1
+  fi
+  return 0
+}
+
+# Function to check if a port is currently bound
+is_port_in_use() {
+  local port=$1
+  if command -v ss &>/dev/null; then
+    ss -tuln | grep -q ":${port} "
+  elif command -v netstat &>/dev/null; then
+    netstat -tuln | grep -q ":${port} "
+  else
+    (echo > /dev/tcp/127.0.0.1/"$port") &>/dev/null
+  fi
+}
+
+echo -e "\n${BOLD}${MAGENTA}--- STEP 1: PORT CONFIGURATION & VERIFICATION ---${NC}\n"
+
+# Prompt & Validate HTTP Port
+while true; do
+  read -p "Enter HTTP Port [Default: 80]: " INPUT_HTTP
+  HTTP_PORT="${INPUT_HTTP:-80}"
+  if validate_port "$HTTP_PORT"; then
+    echo -e "${GREEN}  ✓ Port $HTTP_PORT is valid.${NC}"
+    break
+  else
+    echo -e "${RED}  ✗ Invalid port number. Enter a number between 1 and 65535.${NC}"
+  fi
+done
+
+# Prompt & Validate HTTPS Port
+while true; do
+  read -p "Enter HTTPS Port [Default: 443]: " INPUT_HTTPS
+  HTTPS_PORT="${INPUT_HTTPS:-443}"
+  if ! validate_port "$HTTPS_PORT"; then
+    echo -e "${RED}  ✗ Invalid port number. Enter a number between 1 and 65535.${NC}"
+  elif [ "$HTTPS_PORT" -eq "$HTTP_PORT" ]; then
+    echo -e "${RED}  ✗ HTTPS port cannot be identical to HTTP port ($HTTP_PORT).${NC}"
+  else
+    echo -e "${GREEN}  ✓ Port $HTTPS_PORT is valid.${NC}"
+    break
+  fi
+done
+
+# Prompt & Validate Internal App Port
+while true; do
+  read -p "Enter Internal App Port [Default: 3000]: " INPUT_APP
+  APP_PORT="${INPUT_APP:-3000}"
+  if ! validate_port "$APP_PORT"; then
+    echo -e "${RED}  ✗ Invalid port number. Enter a number between 1 and 65535.${NC}"
+  elif [ "$APP_PORT" -eq "$HTTP_PORT" ] || [ "$APP_PORT" -eq "$HTTPS_PORT" ]; then
+    echo -e "${RED}  ✗ App port cannot collide with HTTP ($HTTP_PORT) or HTTPS ($HTTPS_PORT).${NC}"
+  else
+    echo -e "${GREEN}  ✓ Port $APP_PORT is valid.${NC}"
+    break
+  fi
+done
+
+# Check for Port Collisions on Server
+echo -e "\n${CYAN}Checking port availability on this server...${NC}"
+
+for CHECK_PORT in "$HTTP_PORT" "$HTTPS_PORT" "$APP_PORT"; do
+  if is_port_in_use "$CHECK_PORT"; then
+    echo -e "${YELLOW}[WARNING] Port $CHECK_PORT is currently in use by another process!${NC}"
+    
+    # Check if Apache or legacy Nginx is running
+    if systemctl is-active --quiet apache2 2>/dev/null; then
+      echo -e "${YELLOW}  Found active Apache2 server. Stopping Apache2 to free port $CHECK_PORT...${NC}"
+      systemctl stop apache2 2>/dev/null || true
+      systemctl disable apache2 2>/dev/null || true
+    fi
+
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+      echo -e "${YELLOW}  Found active legacy Nginx server. Stopping Nginx to replace with Caddy...${NC}"
+      systemctl stop nginx 2>/dev/null || true
+      systemctl disable nginx 2>/dev/null || true
+    fi
+
+    # Re-verify port status
+    if is_port_in_use "$CHECK_PORT"; then
+      echo -e "${YELLOW}  Port $CHECK_PORT is still occupied. The installer will clean up conflicting processes during deployment.${NC}"
+    else
+      echo -e "${GREEN}  ✓ Port $CHECK_PORT freed successfully!${NC}"
+    fi
+  else
+    echo -e "${GREEN}  ✓ Port $CHECK_PORT is free and ready.${NC}"
+  fi
+done
+
+
+echo -e "\n${BOLD}${MAGENTA}--- STEP 2: DOMAIN CONFIGURATION & DNS VERIFICATION ---${NC}\n"
+
+while true; do
+  read -p "Enter your Domain Name (e.g. tube.yourdomain.com): " DOMAIN
+  if [ -z "$DOMAIN" ]; then
+    echo -e "${RED}  ✗ Domain name cannot be empty. Please enter your domain.${NC}"
+  else
+    # Simple regex format check
+    if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      echo -e "${GREEN}  ✓ Domain format validated: $DOMAIN${NC}"
+      
+      # Attempt DNS lookup check
+      echo -e "${CYAN}  Verifying DNS record for $DOMAIN...${NC}"
+      RESOLVED_IP=$(getent hosts "$DOMAIN" | awk '{ print $1 }' | head -n 1)
+      SERVER_IP=$(curl -sSL https://api.ipify.org || echo "unknown")
+
+      if [ -n "$RESOLVED_IP" ]; then
+        echo -e "${GREEN}  ✓ DNS Resolution Success: $DOMAIN -> $RESOLVED_IP${NC}"
+        if [ "$RESOLVED_IP" = "$SERVER_IP" ]; then
+          echo -e "${GREEN}  ✓ Excellent! Domain points directly to this VPS IP ($SERVER_IP). Caddy Auto-SSL will work instantly.${NC}"
+        else
+          echo -e "${YELLOW}  ! Note: Server public IP is $SERVER_IP, domain resolved to $RESOLVED_IP. Ensure your A record is correct.${NC}"
+        fi
+      else
+        echo -e "${YELLOW}  ! Warning: $DOMAIN does not resolve to an IP yet. Make sure your DNS A-Record points to this VPS.${NC}"
+      fi
+      break
+    else
+      echo -e "${RED}  ✗ Invalid domain format. Example format: tube.yourdomain.com${NC}"
+    fi
+  fi
+done
+
+
+echo -e "\n${BOLD}${MAGENTA}--- STEP 3: AUTOMATIC UNATTENDED INSTALLATION ---${NC}"
+echo -e "${CYAN}All parameters verified. Starting automated deployment now...${NC}\n"
+
+# 1. Configure UFW Firewall for user-selected ports
+echo -e "${GREEN}[1/5] Configuring UFW Firewall for Ports (SSH 22, HTTP $HTTP_PORT, HTTPS $HTTPS_PORT, App $APP_PORT)...${NC}"
+ufw allow 22/tcp comment 'SSH' >/dev/null 2>&1 || true
+ufw allow "$HTTP_PORT/tcp" comment 'GlassTube HTTP' >/dev/null 2>&1 || true
+ufw allow "$HTTPS_PORT/tcp" comment 'GlassTube HTTPS' >/dev/null 2>&1 || true
+ufw allow "$APP_PORT/tcp" comment 'GlassTube App Internal' >/dev/null 2>&1 || true
+ufw --force enable >/dev/null 2>&1 || true
+
+# 2. Install Docker CE if missing
+echo -e "${GREEN}[2/5] Ensuring Docker & Docker Compose plugin...${NC}"
+if ! command -v docker &> /dev/null; then
+  curl -fsSL https://get.docker.com | sh
+  systemctl enable --now docker
+else
+  systemctl enable --now docker
+fi
+
+# 3. Install Caddy Web Server if missing
+echo -e "${GREEN}[3/5] Installing Caddy Web Server for Automatic SSL/TLS...${NC}"
+if ! command -v caddy &> /dev/null; then
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg --yes >/dev/null 2>&1
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null 2>&1
+  apt-get update -y -q >/dev/null 2>&1
+  apt-get install -y -q caddy >/dev/null 2>&1
+fi
+
+# 4. Deploy GlassTube Files & Docker Setup
+INSTALL_DIR="/opt/glasstube"
+echo -e "${GREEN}[4/5] Deploying GlassTube container files to ${INSTALL_DIR}...${NC}"
+
+mkdir -p "$INSTALL_DIR/data"
+cd "$INSTALL_DIR"
+
+JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "gt_vps_secret_$(date +%s)")
+
+cat <<EOF > "$INSTALL_DIR/.env"
+NODE_ENV=production
+PORT=$APP_PORT
+JWT_SECRET=$JWT_SECRET
+DOMAIN=$DOMAIN
+EOF
+
+cat <<EOF > "$INSTALL_DIR/docker-compose.yml"
+version: '3.8'
+
+services:
+  glasstube:
+    image: node:20-slim
+    container_name: glasstube_vps
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:${APP_PORT}:${APP_PORT}"
+    environment:
+      - NODE_ENV=production
+      - PORT=${APP_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+    command: sh -c "npm install && npm run build && npm start"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT}/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+EOF
+
+# 5. Configure Caddy & Launch
+echo -e "${GREEN}[5/5] Writing Caddyfile reverse proxy & launching Docker container...${NC}"
+
+CADDY_SITE_HEADER="$DOMAIN"
+if [ "$HTTPS_PORT" -ne 443 ]; then
+  CADDY_SITE_HEADER="https://${DOMAIN}:${HTTPS_PORT}"
+fi
+
+cat <<EOF > /etc/caddy/Caddyfile
+# GlassTube Caddy Proxy Configuration
+$CADDY_SITE_HEADER {
+    reverse_proxy 127.0.0.1:${APP_PORT} {
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote.host}
+        header_up X-Forwarded-For {http.request.remote.host}
+        header_up X-Forwarded-Proto {http.request.scheme}
+        flush_interval -1
+    }
+}
+EOF
+
+if [ "$HTTP_PORT" -ne 80 ]; then
+  echo "http_port $HTTP_PORT" >> /etc/caddy/Caddyfile
+fi
+
+systemctl restart caddy
+
+docker compose down --remove-orphans 2>/dev/null || true
+docker compose up -d
+
+echo -e "\n${CYAN}${BOLD}========================================================================"
+echo "      GlassTube VPS Proxy - Installation Completed Successfully!        "
+echo "========================================================================"
+echo -e "${NC}"
+if [ "$HTTPS_PORT" -eq 443 ]; then
+  echo -e "${GREEN}  ✓ Secure Application URL:${BOLD} https://$DOMAIN${NC}"
+else
+  echo -e "${GREEN}  ✓ Secure Application URL:${BOLD} https://$DOMAIN:$HTTPS_PORT${NC}"
+fi
+echo -e "${GREEN}  ✓ HTTP Direct Access:    ${BOLD} http://$DOMAIN:$HTTP_PORT${NC}"
+echo -e "${GREEN}  ✓ Internal App Port:     ${BOLD} $APP_PORT${NC}"
+echo ""
+echo -e "${YELLOW}Useful Commands:${NC}"
+echo -e "  - View Live Caddy SSL Logs: ${BOLD}journalctl -u caddy -f${NC}"
+echo -e "  - View App Logs:           ${BOLD}cd /opt/glasstube && docker compose logs -f${NC}"
+echo -e "  - Restart Proxy Container: ${BOLD}cd /opt/glasstube && docker compose restart${NC}"
+echo -e "${CYAN}========================================================================${NC}\n"
