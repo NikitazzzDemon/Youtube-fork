@@ -234,8 +234,6 @@ DOMAIN=$DOMAIN
 EOF
 
 cat <<EOF > "$INSTALL_DIR/docker-compose.yml"
-version: '3.8'
-
 services:
   glasstube:
     image: node:20-slim
@@ -263,6 +261,16 @@ EOF
 # 5. Configure Caddy & Launch
 echo -e "${GREEN}[5/5] Writing Caddyfile reverse proxy & launching Docker container...${NC}"
 
+# Ensure conflicting Apache or Nginx servers are stopped so Caddy can bind HTTP/HTTPS
+if systemctl is-active --quiet apache2 2>/dev/null; then
+  systemctl stop apache2 2>/dev/null || true
+  systemctl disable apache2 2>/dev/null || true
+fi
+if systemctl is-active --quiet nginx 2>/dev/null; then
+  systemctl stop nginx 2>/dev/null || true
+  systemctl disable nginx 2>/dev/null || true
+fi
+
 CADDY_SITE_HEADER="$DOMAIN"
 if [ "$HTTPS_PORT" -ne 443 ]; then
   CADDY_SITE_HEADER="https://${DOMAIN}:${HTTPS_PORT}"
@@ -270,6 +278,11 @@ fi
 
 cat <<EOF > /etc/caddy/Caddyfile
 # GlassTube Caddy Proxy Configuration
+{
+    http_port $HTTP_PORT
+    https_port $HTTPS_PORT
+}
+
 $CADDY_SITE_HEADER {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
@@ -280,10 +293,6 @@ $CADDY_SITE_HEADER {
     }
 }
 EOF
-
-if [ "$HTTP_PORT" -ne 80 ]; then
-  echo "http_port $HTTP_PORT" >> /etc/caddy/Caddyfile
-fi
 
 systemctl restart caddy
 

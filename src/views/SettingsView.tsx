@@ -10,13 +10,21 @@ export const SettingsView: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [copiedDocker, setCopiedDocker] = useState(false);
   const [copiedOneLiner, setCopiedOneLiner] = useState(false);
+  const [copiedUninstall, setCopiedUninstall] = useState(false);
 
   const oneLinerCommand = `curl -fsSL -o /tmp/install.sh ${window.location.origin}/install.sh && sudo bash /tmp/install.sh`;
+  const uninstallCommand = `curl -fsSL -o /tmp/uninstall.sh ${window.location.origin}/uninstall.sh && sudo bash /tmp/uninstall.sh`;
 
   const handleCopyOneLiner = () => {
     navigator.clipboard.writeText(oneLinerCommand);
     setCopiedOneLiner(true);
     setTimeout(() => setCopiedOneLiner(false), 2000);
+  };
+
+  const handleCopyUninstall = () => {
+    navigator.clipboard.writeText(uninstallCommand);
+    setCopiedUninstall(true);
+    setTimeout(() => setCopiedUninstall(false), 2000);
   };
 
   const dockerSnippet = `version: '3.8'
@@ -185,6 +193,33 @@ services:
 
         <pre className="p-3 sm:p-4 rounded-2xl glass-panel border border-zinc-500/20 text-[11px] font-mono overflow-x-auto">
           {dockerSnippet}
+        </pre>
+      </GlassCard>
+
+      {/* 1-Step Uninstaller */}
+      <GlassCard className="!p-4 sm:!p-6 border border-rose-500/20 bg-rose-500/5 flex flex-col gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-rose-500 dark:text-rose-400">
+            <Terminal className="w-4 h-4 text-rose-500" />
+            <span>VPS Uninstaller (Clean Removal)</span>
+          </div>
+          <PillButton
+            onClick={handleCopyUninstall}
+            size="sm"
+            active
+            icon={copiedUninstall ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            className="!px-3 !py-1 text-xs font-bold shrink-0 text-rose-500 border-rose-500/30"
+          >
+            {copiedUninstall ? 'Copied Uninstaller' : 'Copy Uninstaller Command'}
+          </PillButton>
+        </div>
+
+        <p className="text-xs opacity-80 leading-relaxed font-medium">
+          Completely stops containers, removes <code className="px-1 py-0.5 rounded font-mono glass-panel">/opt/glasstube</code>, resets Caddy config, and cleans UFW firewall rules.
+        </p>
+
+        <pre className="p-3.5 sm:p-4 rounded-2xl bg-black/90 text-rose-400 text-[11px] font-mono overflow-x-auto border border-rose-500/20 shadow-inner">
+          {uninstallCommand}
         </pre>
       </GlassCard>
 

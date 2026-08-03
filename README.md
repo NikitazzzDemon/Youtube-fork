@@ -142,6 +142,16 @@ docker compose up -d
 
 ---
 
+## 🗑 Удаление проекта с VPS (Uninstaller)
+
+Если вам нужно полностью удалить GlassTube, очистить Caddy и контейнеры:
+
+```bash
+curl -fsSL -o /tmp/uninstall.sh https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/uninstall.sh && sudo bash /tmp/uninstall.sh
+```
+
+---
+
 ## 🛡 Лицензия & Требования
 - **ОС:** Ubuntu 20.04 / 22.04 / 24.04 LTS, Debian 11 / 12
 - **Минимальные ресурсы:** 1 vCPU, 1 GB RAM, 10 GB SSD
