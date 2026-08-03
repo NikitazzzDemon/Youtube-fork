@@ -11,7 +11,7 @@ export const SettingsView: React.FC = () => {
   const [copiedDocker, setCopiedDocker] = useState(false);
   const [copiedOneLiner, setCopiedOneLiner] = useState(false);
 
-  const oneLinerCommand = `curl -sSL ${window.location.origin}/install.sh | sudo bash`;
+  const oneLinerCommand = `curl -fsSL -o /tmp/install.sh ${window.location.origin}/install.sh && sudo bash /tmp/install.sh`;
 
   const handleCopyOneLiner = () => {
     navigator.clipboard.writeText(oneLinerCommand);

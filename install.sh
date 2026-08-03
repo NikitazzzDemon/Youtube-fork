@@ -15,9 +15,15 @@ set -e
 # Fix getcwd errors if user launched script from a deleted directory
 cd /tmp 2>/dev/null || cd /root 2>/dev/null || true
 
-# Rebind stdin to interactive TTY if piped via `curl ... | bash`
-if [ ! -t 0 ] && [ -e /dev/tty ]; then
-  exec < /dev/tty
+# Rebind stdin to interactive TTY if piped via curl
+if [ ! -t 0 ]; then
+  if [ -c /dev/tty ]; then
+    exec < /dev/tty
+  else
+    echo -e "\033[0;31m[ERROR] Interactive input required. Please run via file download:\033[0m"
+    echo -e "\033[1;33m  curl -fsSL -o /tmp/install.sh https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh && sudo bash /tmp/install.sh\033[0m"
+    exit 1
+  fi
 fi
 
 # Color Palette
