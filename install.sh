@@ -324,7 +324,7 @@ EOF
 # 5. Configure Caddy & Launch
 echo -e "${GREEN}[5/5] Writing Caddyfile reverse proxy & launching Docker container...${NC}"
 
-# Ensure conflicting Apache or Nginx servers are stopped so Caddy can bind HTTP/HTTPS
+# Ensure conflicting Apache or Nginx servers or orphan processes on port 80 are stopped so Caddy can bind
 if systemctl is-active --quiet apache2 2>/dev/null; then
   systemctl stop apache2 2>/dev/null || true
   systemctl disable apache2 2>/dev/null || true
@@ -333,6 +333,7 @@ if systemctl is-active --quiet nginx 2>/dev/null; then
   systemctl stop nginx 2>/dev/null || true
   systemctl disable nginx 2>/dev/null || true
 fi
+fuser -k 80/tcp 2>/dev/null || true
 
 if [ "$USE_TLS_INTERNAL" = "yes" ]; then
   cat <<EOF > /etc/caddy/Caddyfile
@@ -341,7 +342,7 @@ if [ "$USE_TLS_INTERNAL" = "yes" ]; then
     auto_https disable_redirects
 }
 
-# Plain HTTP endpoint (prevents ERR_TOO_MANY_REDIRECTS)
+# Plain HTTP endpoint
 http://${DOMAIN}:${HTTP_PORT} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
@@ -365,10 +366,13 @@ https://${DOMAIN}:${HTTPS_PORT} {
 }
 EOF
 else
-  if [ "$HTTP_PORT" -eq 80 ] && [ "$HTTPS_PORT" -eq 443 ]; then
-    cat <<EOF > /etc/caddy/Caddyfile
-# GlassTube Caddy Proxy Configuration (Let's Encrypt Official Auto-SSL)
-${DOMAIN} {
+  cat <<EOF > /etc/caddy/Caddyfile
+# GlassTube Caddy Proxy Configuration (HTTP Port 80 / Custom Ports)
+{
+    auto_https off
+}
+
+http://${DOMAIN}:${HTTP_PORT} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote.host}
@@ -378,20 +382,6 @@ ${DOMAIN} {
     }
 }
 EOF
-  else
-    cat <<EOF > /etc/caddy/Caddyfile
-# GlassTube Caddy Proxy Configuration (Let's Encrypt Official Auto-SSL Custom Ports)
-https://${DOMAIN}:${HTTPS_PORT} {
-    reverse_proxy 127.0.0.1:${APP_PORT} {
-        header_up Host {http.request.host}
-        header_up X-Real-IP {http.request.remote.host}
-        header_up X-Forwarded-For {http.request.remote.host}
-        header_up X-Forwarded-Proto {http.request.scheme}
-        flush_interval -1
-    }
-}
-EOF
-  fi
 fi
 
 systemctl restart caddy
