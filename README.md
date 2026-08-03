@@ -38,8 +38,11 @@ GlassTube — это стильный, приватный веб-клиент и
 Подключитесь к вашему VPS по SSH под пользователем `root` (или с правами `sudo`) и выполните команду:
 
 ```bash
-# Для установки прямо из репозитория GitHub (замените USERNAME/REPO на ваш репозиторий):
-curl -sSL https://raw.githubusercontent.com/USERNAME/REPO/main/install.sh | sudo bash
+# Вариант 1 (Запуск через curl pipe):
+curl -sSL https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh | sudo bash
+
+# Вариант 2 (Запуск через Process Substitution - рекомендуется для интерактивных диалогов):
+sudo bash <(curl -sSL https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh)
 ```
 
 *Если вы уже склонировали репозиторий локально на сервер:*

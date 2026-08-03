@@ -12,6 +12,14 @@
 
 set -e
 
+# Fix getcwd errors if user launched script from a deleted directory
+cd /tmp 2>/dev/null || cd /root 2>/dev/null || true
+
+# Rebind stdin to interactive TTY if piped via `curl ... | bash`
+if [ ! -t 0 ] && [ -e /dev/tty ]; then
+  exec < /dev/tty
+fi
+
 # Color Palette
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -33,6 +41,11 @@ if [ "$EUID" -ne 0 ]; then
   echo -e "${YELLOW}  sudo bash $0${NC}"
   exit 1
 fi
+
+# Always force working directory to /opt/glasstube right away
+INSTALL_DIR="/opt/glasstube"
+mkdir -p "$INSTALL_DIR/data"
+cd "$INSTALL_DIR" 2>/dev/null || true
 
 # Ensure basic resolution & network diagnostic tools are present
 echo -e "${CYAN}[Init] Updating package index & ensuring core utilities (curl, ss, dnsutils)...${NC}"
