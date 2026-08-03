@@ -38,11 +38,11 @@ GlassTube — это стильный, приватный веб-клиент и
 Подключитесь к вашему VPS по SSH под пользователем `root` (или с правами `sudo`) и выполните команду:
 
 ```bash
-# Вариант 1 (Запуск через curl pipe):
-curl -sSL https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh | sudo bash
+# Рекомендуемый запуск (с очисткой пути директории):
+cd ~ && sudo bash <(curl -sSL https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh)
 
-# Вариант 2 (Запуск через Process Substitution - рекомендуется для интерактивных диалогов):
-sudo bash <(curl -sSL https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh)
+# Альтернативный запуск через pipe:
+cd ~ && curl -sSL https://raw.githubusercontent.com/NikitazzzDemon/Youtube-fork/main/install.sh | sudo bash
 ```
 
 *Если вы уже склонировали репозиторий локально на сервер:*
