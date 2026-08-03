@@ -336,14 +336,12 @@ fi
 
 if [ "$USE_TLS_INTERNAL" = "yes" ]; then
   cat <<EOF > /etc/caddy/Caddyfile
-# GlassTube Caddy Proxy Configuration (Cloudflare Proxy / Internal SSL)
+# GlassTube Caddy Proxy Configuration (Internal SSL / Cloudflare Proxy)
 {
-    http_port $HTTP_PORT
-    https_port $HTTPS_PORT
     auto_https disable_redirects
 }
 
-# Plain HTTP endpoint (prevents ERR_TOO_MANY_REDIRECTS if Cloudflare SSL is Flexible)
+# Plain HTTP endpoint (prevents ERR_TOO_MANY_REDIRECTS)
 http://${DOMAIN}:${HTTP_PORT} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
@@ -354,7 +352,7 @@ http://${DOMAIN}:${HTTP_PORT} {
     }
 }
 
-# HTTPS endpoint with self-signed SSL (for Cloudflare SSL Full / Full Strict mode)
+# HTTPS endpoint with self-signed SSL
 https://${DOMAIN}:${HTTPS_PORT} {
     tls internal
     reverse_proxy 127.0.0.1:${APP_PORT} {
@@ -367,20 +365,10 @@ https://${DOMAIN}:${HTTPS_PORT} {
 }
 EOF
 else
-  CADDY_SITE_HEADER="$DOMAIN"
-  if [ "$HTTPS_PORT" -ne 443 ]; then
-    CADDY_SITE_HEADER="https://${DOMAIN}:${HTTPS_PORT}"
-  fi
-
-  cat <<EOF > /etc/caddy/Caddyfile
+  if [ "$HTTP_PORT" -eq 80 ] && [ "$HTTPS_PORT" -eq 443 ]; then
+    cat <<EOF > /etc/caddy/Caddyfile
 # GlassTube Caddy Proxy Configuration (Let's Encrypt Official Auto-SSL)
-{
-    http_port $HTTP_PORT
-    https_port $HTTPS_PORT
-    auto_https disable_redirects
-}
-
-$CADDY_SITE_HEADER {
+${DOMAIN} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote.host}
@@ -390,11 +378,10 @@ $CADDY_SITE_HEADER {
     }
 }
 EOF
-
-  if [ "$HTTP_PORT" -ne 80 ]; then
-    cat <<EOF >> /etc/caddy/Caddyfile
-
-http://${DOMAIN}:${HTTP_PORT} {
+  else
+    cat <<EOF > /etc/caddy/Caddyfile
+# GlassTube Caddy Proxy Configuration (Let's Encrypt Official Auto-SSL Custom Ports)
+https://${DOMAIN}:${HTTPS_PORT} {
     reverse_proxy 127.0.0.1:${APP_PORT} {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote.host}
