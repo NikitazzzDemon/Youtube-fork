@@ -490,6 +490,27 @@ async function startServer() {
         const info = await yt.getInfo(videoId);
         if (info && info.basic_info) {
           const b = info.basic_info;
+          const sec = (info as any).secondary_info;
+          const pri = (info as any).primary_info;
+
+          const realAvatar =
+            sec?.owner?.author?.thumbnails?.[0]?.url ||
+            pri?.author?.thumbnails?.[0]?.url ||
+            (b as any).author?.thumbnails?.[0]?.url ||
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120';
+
+          const subCount =
+            sec?.owner?.author?.subscriber_count?.text ||
+            sec?.owner?.subscriber_count?.text ||
+            (b as any).subscriber_count?.text ||
+            'Subscribers hidden';
+
+          const pubTime =
+            pri?.published?.text ||
+            pri?.relative_date?.text ||
+            (b as any).upload_date ||
+            'Recently';
+
           videoDetails = {
             id: b.id,
             title: b.title || 'Video',
@@ -500,14 +521,12 @@ async function startServer() {
             duration: `${Math.floor((b.duration || 300) / 60)}:${String((b.duration || 300) % 60).padStart(2, '0')}`,
             durationSec: b.duration || 300,
             viewCount: (b.view_count || 150000).toLocaleString() + ' views',
-            publishedTime: '2026',
+            publishedTime: pubTime,
             author: {
               id: b.channel_id || 'channel_1',
               name: b.author || 'YouTube Channel',
-              avatar: `/api/proxy-image?url=${encodeURIComponent(
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120'
-              )}`,
-              subscriberCount: '1.5M subscribers',
+              avatar: `/api/proxy-image?url=${encodeURIComponent(realAvatar)}`,
+              subscriberCount: subCount,
               verified: true,
             },
             proxyStreamUrl: `/api/stream?id=${b.id}`,
@@ -561,17 +580,45 @@ async function startServer() {
         });
       }
 
-      // Mock related videos
-      const related = getMockTrendingVideos()
-        .filter((m) => m.id !== videoId)
-        .map((v) => ({
-          ...v,
-          thumbnail: `/api/proxy-image?url=${encodeURIComponent(v.thumbnail)}`,
-          author: {
-            ...v.author,
-            avatar: `/api/proxy-image?url=${encodeURIComponent(v.author.avatar)}`,
-          },
-        }));
+      // Fetch related videos
+      let related: any[] = [];
+      try {
+        const searchRes = await yt.search(videoDetails.title || 'trending', { type: 'video' });
+        if (searchRes && searchRes.results) {
+          related = searchRes.results
+            .filter((v: any) => v.id && v.id !== videoId)
+            .slice(0, 10)
+            .map((v: any) => ({
+              id: v.id,
+              title: v.title?.text || v.title || 'Related Video',
+              description: v.description || '',
+              thumbnail: `/api/proxy-image?url=${encodeURIComponent(
+                v.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`
+              )}`,
+              duration: v.duration?.text || '10:00',
+              viewCount: v.view_count?.text || '100K views',
+              publishedTime: v.published?.text || 'Recently',
+              author: {
+                id: v.author?.id || 'channel_rel',
+                name: v.author?.name || 'Creator',
+                avatar: `/api/proxy-image?url=${encodeURIComponent(
+                  v.author?.thumbnails?.[0]?.url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'
+                )}`,
+              },
+            }));
+        }
+      } catch (relErr) {
+        related = getMockTrendingVideos()
+          .filter((m) => m.id !== videoId)
+          .map((v) => ({
+            ...v,
+            thumbnail: `/api/proxy-image?url=${encodeURIComponent(v.thumbnail)}`,
+            author: {
+              ...v.author,
+              avatar: `/api/proxy-image?url=${encodeURIComponent(v.author.avatar)}`,
+            },
+          }));
+      }
 
       return res.json({ video: videoDetails, isSubscribed, related });
     } catch (e: any) {
@@ -583,32 +630,37 @@ async function startServer() {
   app.get('/api/comments/:id', async (req: Request, res: Response) => {
     try {
       const videoId = req.params.id;
-      const comments = [
-        {
-          id: 'c1',
-          author: 'Alex_Dev',
-          avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'),
-          text: 'This VPS proxy server works seamlessly! 1080p streaming without any buffering or Google blocks.',
-          publishedTime: '3 hours ago',
-          likeCount: '242',
-        },
-        {
-          id: 'c2',
-          author: 'CyberNaut',
-          avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100'),
-          text: 'The Glassmorphism UI aesthetic with pill capsule navigation is insanely clean. Loving the dark cosmic atmosphere!',
-          publishedTime: '5 hours ago',
-          likeCount: '98',
-        },
-        {
-          id: 'c3',
-          author: 'Elena_K',
-          avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100'),
-          text: 'Chunked stream encoding keeps memory usage so low on my server. Great implementation!',
-          publishedTime: '1 day ago',
-          likeCount: '54',
-        },
-      ];
+      const yt = await getYouTubeClient();
+      let comments: any[] = [];
+
+      try {
+        const response = await yt.getComments(videoId);
+        const rawComments = response?.contents || [];
+        rawComments.forEach((c: any) => {
+          const thread = c.comment || c;
+          if (thread) {
+            const textStr = thread.content?.text || thread.content?.toString() || thread.text || '';
+            if (textStr) {
+              const authorName = thread.author?.name || thread.author?.text || 'YouTube User';
+              const avatarUrl = thread.author?.thumbnails?.[0]?.url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+              const pub = thread.published?.text || 'Recently';
+              const likes = thread.vote_count?.text || (thread.like_count ? String(thread.like_count) : '0');
+
+              comments.push({
+                id: thread.comment_id || thread.id || `c_${Math.random().toString(36).substring(7)}`,
+                author: authorName,
+                avatar: `/api/proxy-image?url=${encodeURIComponent(avatarUrl)}`,
+                text: textStr,
+                publishedTime: pub,
+                likeCount: likes,
+              });
+            }
+          }
+        });
+      } catch (err) {
+        console.warn(`[Comments API] InnerTube getComments error for ${videoId}:`, err);
+      }
+
       return res.json({ comments });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -619,31 +671,144 @@ async function startServer() {
   app.get('/api/channel/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
     const channelId = req.params.id;
     try {
-      const channelDetails = {
-        id: channelId,
-        name: channelId.includes('UC') ? 'Veritasium & Science' : 'Futuristic Tech & Design',
-        avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'),
-        banner: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'),
-        subscriberCount: '3.4M subscribers',
-        description: 'Exploring science, high performance software, UI aesthetics, and private cloud engineering.',
-        videoCount: '248 videos',
-        isSubscribed: false,
-      };
+      const yt = await getYouTubeClient();
+      let channelDetails: any = null;
+      let channelVideos: any[] = [];
 
-      if (req.user) {
+      // Try fetching real channel data from InnerTube
+      try {
+        const ch = await yt.getChannel(channelId);
+        if (ch) {
+          const title = ch.metadata?.title || ch.header?.author?.name || ch.header?.title?.text || channelId;
+          const avatarUrl =
+            ch.metadata?.avatar?.[0]?.url ||
+            ch.header?.author?.thumbnails?.[0]?.url ||
+            ch.header?.avatar?.[0]?.url ||
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200';
+          const bannerUrl =
+            ch.metadata?.banner?.[0]?.url ||
+            ch.header?.banner?.[0]?.url ||
+            'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200';
+          const subCount =
+            ch.metadata?.subscriber_count?.text ||
+            ch.header?.author?.subscribers?.text ||
+            ch.header?.subscribers?.text ||
+            'Subscribers hidden';
+          const desc = ch.metadata?.description || ch.header?.description?.text || `Official channel content for ${title}.`;
+
+          channelDetails = {
+            id: channelId,
+            name: title,
+            avatar: `/api/proxy-image?url=${encodeURIComponent(avatarUrl)}`,
+            banner: `/api/proxy-image?url=${encodeURIComponent(bannerUrl)}`,
+            subscriberCount: subCount,
+            description: desc,
+            videoCount: 'Channel Uploads',
+            isSubscribed: false,
+          };
+
+          // Attempt to get videos tab directly
+          let rawVideos: any[] = [];
+          try {
+            const videosTab = await ch.getVideos();
+            if (videosTab && (videosTab.videos || videosTab.contents)) {
+              rawVideos = videosTab.videos || videosTab.contents || [];
+            }
+          } catch (vErr) {
+            rawVideos = ch.videos || ch.current_tab?.content?.contents || [];
+          }
+
+          if (Array.isArray(rawVideos) && rawVideos.length > 0) {
+            channelVideos = rawVideos
+              .filter((v: any) => v.id || v.video_id)
+              .slice(0, 24)
+              .map((v: any) => {
+                const vid = v.id || v.video_id;
+                return {
+                  id: vid,
+                  title: v.title?.text || v.title || 'Channel Upload',
+                  description: v.description || '',
+                  thumbnail: `/api/proxy-image?url=${encodeURIComponent(
+                    v.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`
+                  )}`,
+                  duration: v.duration?.text || '10:15',
+                  viewCount: v.view_count?.text || '45K views',
+                  publishedTime: v.published?.text || 'Recently',
+                  author: {
+                    id: channelId,
+                    name: channelDetails.name,
+                    avatar: channelDetails.avatar,
+                  },
+                };
+              });
+          }
+        }
+      } catch (err) {
+        console.warn(`[Channel API] Innertube getChannel warning for ${channelId}, using search fallback`);
+      }
+
+      // If InnerTube channel videos empty or channel not found directly by ID, search YouTube for this channel
+      if (channelVideos.length === 0) {
+        let channelQuery = channelId;
+        if (channelDetails?.name) {
+          channelQuery = channelDetails.name;
+        } else if (channelId.includes('UC_x5XG1OV2P6uZZ5FSM9Ttw')) channelQuery = 'Google Developers';
+        else if (channelId.includes('UCWv7vMbMWH4')) channelQuery = 'Veritasium';
+        else if (channelId.includes('mentaldisorders')) channelQuery = 'mentaldisorders';
+        else if (channelId.includes('UCuAXFkgaiiZoznacU6L5E')) channelQuery = 'Rick Astley';
+        else if (channelId.includes('UCSJ4gkVC6NrvII8umztf0OWg')) channelQuery = 'Lofi Girl';
+
+        try {
+          // Search for channel to get proper info if missing
+          if (!channelDetails) {
+            const chSearch = await yt.search(channelQuery, { type: 'channel' });
+            if (chSearch && chSearch.results && chSearch.results.length > 0) {
+              const firstCh = chSearch.results[0] as any;
+              channelDetails = {
+                id: firstCh.id || channelId,
+                name: firstCh.author?.name || firstCh.title || channelQuery,
+                avatar: `/api/proxy-image?url=${encodeURIComponent(
+                  firstCh.thumbnails?.[0]?.url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
+                )}`,
+                banner: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'),
+                subscriberCount: firstCh.subscribers?.text || 'Subscribers hidden',
+                description: firstCh.description_snippet?.text || `Official channel videos for ${channelQuery}.`,
+                videoCount: 'Channel Uploads',
+                isSubscribed: false,
+              };
+            }
+          }
+
+          const searchRes = await yt.search(channelDetails?.name || channelQuery, { type: 'video' });
+          if (searchRes && searchRes.results) {
+            channelVideos = searchRes.results.slice(0, 16).map((v: any) => ({
+              id: v.id,
+              title: v.title?.text || v.title || `${channelQuery} Video`,
+              description: v.description || '',
+              thumbnail: `/api/proxy-image?url=${encodeURIComponent(
+                v.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`
+              )}`,
+              duration: v.duration?.text || '12:30',
+              viewCount: v.view_count?.text || '180K views',
+              publishedTime: v.published?.text || '1 week ago',
+              author: {
+                id: v.author?.id || channelId,
+                name: v.author?.name || channelDetails?.name || channelQuery,
+                avatar: `/api/proxy-image?url=${encodeURIComponent(
+                  v.author?.thumbnails?.[0]?.url || channelDetails?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
+                )}`,
+              },
+            }));
+          }
+        } catch (sErr) {
+          console.warn('[Channel Search Fallback Warning]', sErr);
+        }
+      }
+
+      if (req.user && channelDetails) {
         const subs = getSubscriptions(req.user.id);
         channelDetails.isSubscribed = subs.some((s) => s.channelId === channelId);
       }
-
-      const channelVideos = getMockTrendingVideos().map((v) => ({
-        ...v,
-        thumbnail: `/api/proxy-image?url=${encodeURIComponent(v.thumbnail)}`,
-        author: {
-          id: channelId,
-          name: channelDetails.name,
-          avatar: channelDetails.avatar,
-        },
-      }));
 
       return res.json({ channel: channelDetails, videos: channelVideos });
     } catch (e: any) {

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Home, Clock, Bookmark, Server, Settings, ShieldAlert, Tv, X } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Home, Clock, Bookmark, Settings, ShieldAlert, Tv, X } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
@@ -10,14 +9,11 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpen, onClose }) => {
-  const { user } = useAuth();
-
   const navItems = [
     { id: 'home', label: 'Home Feed', icon: <Home className="w-4 h-4" /> },
     { id: 'subscriptions', label: 'Subscriptions', icon: <Tv className="w-4 h-4" /> },
     { id: 'history', label: 'Watch History', icon: <Clock className="w-4 h-4" /> },
     { id: 'saved', label: 'Saved Videos', icon: <Bookmark className="w-4 h-4" /> },
-    { id: 'vps', label: 'VPS Status', icon: <Server className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
@@ -36,16 +32,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
         />
       )}
 
+      {/* Responsive Sidebar */}
       <aside
-        className={`fixed top-16 sm:top-20 left-2 sm:left-4 bottom-4 z-50 lg:z-30 w-64 glass-panel rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 transform ${
-          isOpen ? 'translate-x-0' : '-translate-x-80 lg:translate-x-0'
-        } shadow-2xl border border-zinc-500/20 max-h-[calc(100vh-5rem)] overflow-y-auto no-scrollbar`}
+        className={`
+          /* Mobile layout drawer */
+          fixed inset-y-0 left-0 top-0 pt-20 pb-6 px-4 z-50 w-64 glass-panel transition-transform duration-300 transform lg:transform-none
+          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          /* Desktop layout sticky column */
+          lg:static lg:z-10 lg:w-64 lg:shrink-0 lg:h-[calc(100vh-8.5rem)] lg:sticky lg:top-28
+          rounded-3xl p-4 flex flex-col justify-between shadow-xl border border-zinc-500/20 overflow-y-auto no-scrollbar
+        `}
       >
         <div className="flex flex-col gap-5">
           {/* Mobile Header with Close Button */}
           <div className="flex items-center justify-between lg:hidden pb-2 border-b border-zinc-500/20">
             <span className="text-xs font-black uppercase tracking-wider opacity-70">Menu</span>
-            <button onClick={onClose} className="p-1 rounded-full hover:bg-zinc-500/20 transition">
+            <button onClick={onClose} className="p-1 rounded-full hover:bg-zinc-500/20 transition cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -87,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
                 onClick={() => handleSelect('channel:UC_x5XG1OV2P6uZZ5FSM9Ttw')}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-full text-xs opacity-80 hover:opacity-100 hover:bg-zinc-500/15 transition font-medium cursor-pointer"
               >
-                <div className="w-5 h-5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black flex items-center justify-center text-[10px] font-black border border-zinc-500/30">
+                <div className="w-5 h-5 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black flex items-center justify-center text-[10px] font-black border border-zinc-500/30 shrink-0">
                   G
                 </div>
                 <span className="truncate">Google Developers</span>
@@ -96,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
                 onClick={() => handleSelect('channel:UCWv7vMbMWH4-V0ZXgpyX54A')}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-full text-xs opacity-80 hover:opacity-100 hover:bg-zinc-500/15 transition font-medium cursor-pointer"
               >
-                <div className="w-5 h-5 rounded-full bg-zinc-800 text-white flex items-center justify-center text-[10px] font-black border border-zinc-500/30">
+                <div className="w-5 h-5 rounded-full bg-zinc-800 text-white flex items-center justify-center text-[10px] font-black border border-zinc-500/30 shrink-0">
                   V
                 </div>
                 <span className="truncate">Veritasium</span>
@@ -106,9 +108,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
         </div>
 
         {/* Bottom Private VPS Shield Badge */}
-        <div className="rounded-2xl p-3 glass-panel-interactive flex flex-col gap-1.5 mt-4">
+        <div className="rounded-2xl p-3 glass-panel-interactive flex flex-col gap-1.5 mt-4 shrink-0">
           <div className="flex items-center gap-2 text-xs font-bold">
-            <ShieldAlert className="w-4 h-4 text-emerald-500" />
+            <ShieldAlert className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>Zero-Google Direct</span>
           </div>
           <p className="text-[10px] opacity-70 leading-relaxed font-medium">

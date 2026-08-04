@@ -166,7 +166,7 @@ function AppContent() {
         />
 
         {/* Dynamic View Canvas */}
-        <main className="flex-1 min-w-0 lg:ml-60 transition-all duration-300">
+        <main className="flex-1 min-w-0 transition-all duration-300">
           {currentView === 'home' && (
             <HomeView
               videos={videos}
