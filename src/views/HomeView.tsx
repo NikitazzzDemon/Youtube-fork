@@ -55,7 +55,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Video Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 w-full">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="glass-panel rounded-2xl p-3.5 flex flex-col gap-3 animate-pulse border border-zinc-500/20">
               <div className="aspect-video w-full bg-zinc-500/20 rounded-xl"></div>
@@ -75,7 +75,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <p className="text-xs opacity-60 mt-1">Try searching for a specific topic in the search bar above.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 w-full">
           {videos.map((video) => (
             <VideoCard
               key={video.id}

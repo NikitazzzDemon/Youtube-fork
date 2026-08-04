@@ -87,23 +87,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       </div>
 
       {/* Details Container */}
-      <div className="p-3.5 sm:p-4 flex gap-3">
+      <div className="p-4 flex gap-3.5">
         {/* Channel Avatar */}
         <div
           onClick={(e) => {
             e.stopPropagation();
             if (onChannelClick) onChannelClick(video.author.id);
           }}
-          className="shrink-0 group/avatar relative"
+          className="shrink-0 group/avatar relative mt-0.5"
         >
           {!avatarLoaded && (
-            <div className="w-9 h-9 rounded-full bg-zinc-700/60 animate-pulse absolute inset-0" />
+            <div className="w-10 h-10 rounded-full bg-zinc-700/60 animate-pulse absolute inset-0" />
           )}
           <img
             src={video.author.avatar}
             alt={video.author.name}
             onLoad={() => setAvatarLoaded(true)}
-            className={`w-9 h-9 rounded-full object-cover border border-zinc-500/40 group-hover/avatar:border-current transition-opacity duration-300 ${
+            className={`w-10 h-10 rounded-full object-cover border border-zinc-500/40 group-hover/avatar:border-current transition-opacity duration-300 ${
               avatarLoaded ? 'opacity-100' : 'opacity-0'
             }`}
             onError={(e) => {
@@ -116,26 +116,26 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
         {/* Title & Metadata */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-xs sm:text-sm font-bold line-clamp-2 leading-snug transition-colors">
+          <h3 className="text-sm sm:text-base font-bold line-clamp-2 leading-snug tracking-tight">
             {video.title}
           </h3>
 
-          <div className="mt-1 flex items-center gap-1 text-xs opacity-70">
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs opacity-75 font-semibold">
             <span
               onClick={(e) => {
                 e.stopPropagation();
                 if (onChannelClick) onChannelClick(video.author.id);
               }}
-              className="hover:underline transition truncate font-medium"
+              className="hover:underline transition truncate"
             >
               {video.author.name}
             </span>
             {video.author.verified && (
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
             )}
           </div>
 
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] opacity-60">
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] sm:text-xs opacity-65 font-medium whitespace-nowrap">
             <span>{video.viewCount}</span>
             <span>•</span>
             <span>{video.publishedTime}</span>

@@ -136,11 +136,11 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
       {/* Videos Section */}
       <div className="flex flex-col gap-3 mt-2">
         <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-          <Video className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Uploaded Videos ({videos.length})</span>
+          <Video className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+          <span>Channel Videos ({videos.length})</span>
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
           {videos.map((video) => (
             <VideoCard
               key={video.id}

@@ -72,24 +72,52 @@ function AppContent() {
     loadFeed(selectedCategory);
     loadSavedIds();
 
-    // Check share URL parameters ?watch=...
-    const urlParams = new URLSearchParams(window.location.search);
-    const watchId = urlParams.get('watch');
-    if (watchId) {
-      setActiveVideoId(watchId);
-      setCurrentView('watch');
-    }
+    const parseUrlState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const watchId = urlParams.get('watch');
+      const viewParam = urlParams.get('view');
+      const qParam = urlParams.get('q');
+      const channelParam = urlParams.get('channel');
+
+      if (watchId) {
+        setActiveVideoId(watchId);
+        setCurrentView('watch');
+      } else if (qParam) {
+        setSearchQuery(qParam);
+        handleSearch(qParam, false);
+      } else if (channelParam) {
+        setActiveChannelId(channelParam);
+        setCurrentView('channel');
+      } else if (viewParam) {
+        setCurrentView(viewParam);
+      } else {
+        setCurrentView('home');
+      }
+    };
+
+    parseUrlState();
+
+    const handlePopState = () => {
+      parseUrlState();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleSelectCategory = (category: string) => {
     setSelectedCategory(category);
     setCurrentView('home');
     loadFeed(category);
+    window.history.pushState({ view: 'home', category }, '', '/');
   };
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (query: string, pushHistory = true) => {
     setSearchQuery(query);
     setCurrentView('search');
+    if (pushHistory) {
+      window.history.pushState({ q: query }, '', `/?q=${encodeURIComponent(query)}`);
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
@@ -110,13 +138,13 @@ function AppContent() {
     playVideo(video);
     setCurrentView('watch');
     setIsSidebarOpen(false); // Auto-close sidebar on watch page for full width
-    // Update URL parameter cleanly without reloading
-    window.history.pushState({}, '', `/?watch=${video.id}`);
+    window.history.pushState({ watch: video.id }, '', `/?watch=${video.id}`);
   };
 
   const handleSelectChannel = (channelId: string) => {
     setActiveChannelId(channelId);
     setCurrentView('channel');
+    window.history.pushState({ channel: channelId }, '', `/?channel=${channelId}`);
   };
 
   const handleToggleSave = async (videoId: string) => {
@@ -145,9 +173,7 @@ function AppContent() {
       return;
     }
     setCurrentView(view);
-    if (view === 'home') {
-      window.history.pushState({}, '', '/');
-    }
+    window.history.pushState({ view }, '', view === 'home' ? '/' : `/?view=${view}`);
   };
 
   return (
@@ -162,7 +188,7 @@ function AppContent() {
       />
 
       {/* Main App Layout */}
-      <div className="flex-1 max-w-[1700px] w-full mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex justify-center gap-6">
+      <div className="flex-1 w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex justify-center gap-6">
         {/* Sidebar */}
         <Sidebar
           currentView={currentView}

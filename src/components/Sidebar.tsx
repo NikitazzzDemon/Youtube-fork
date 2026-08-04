@@ -28,23 +28,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 xl:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
         />
       )}
 
-      {/* Responsive Sidebar */}
+      {/* Responsive Overlay Sidebar Drawer */}
       <aside
         className={`
-          /* Mobile & Tablet Drawer (< xl): Fixed overlay on top (z-50) without shifting main layout */
-          fixed inset-y-0 left-0 top-0 pt-20 pb-6 px-4 z-50 w-64 glass-panel transition-all duration-300 transform shadow-2xl
+          fixed inset-y-0 left-0 top-0 pt-20 pb-6 px-4 z-50 w-72 glass-panel transition-all duration-300 transform shadow-2xl
           ${isOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-full opacity-0 pointer-events-none'}
-          /* Desktop sticky column (≥ xl): In-flow column when open */
-          ${
-            isOpen
-              ? 'xl:static xl:z-10 xl:w-64 xl:shrink-0 xl:opacity-100 xl:transform-none xl:h-[calc(100vh-8.5rem)] xl:sticky xl:top-28 xl:pointer-events-auto'
-              : 'xl:hidden xl:w-0 xl:shrink-0 xl:p-0 xl:m-0 xl:border-0'
-          }
-          rounded-3xl p-4 flex flex-col justify-between border border-zinc-500/20 overflow-y-auto no-scrollbar
+          rounded-r-3xl p-4 flex flex-col justify-between border-r border-zinc-500/20 overflow-y-auto no-scrollbar
         `}
       >
         <div className="flex flex-col gap-5">

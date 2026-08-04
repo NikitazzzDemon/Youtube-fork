@@ -82,7 +82,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         ) : videos.length === 0 ? (
           <div className="py-12 text-center glass-panel rounded-3xl border border-zinc-500/20 text-xs sm:text-sm">No results found.</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
             {videos.map((video) => (
               <VideoCard
                 key={video.id}

@@ -128,7 +128,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
 
   if (loading || !video) {
     return (
-      <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+      <div className="flex flex-col gap-6 w-full mx-auto">
         <div className="aspect-video w-full rounded-2xl sm:rounded-3xl glass-panel animate-pulse flex items-center justify-center">
           <div className="text-xs sm:text-sm font-bold opacity-70">Connecting to VPS Stream Proxy...</div>
         </div>
@@ -139,7 +139,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
   const isSaved = savedVideoIds.includes(video.id);
 
   return (
-    <div className={`max-w-7xl mx-auto flex flex-col ${isTheater ? 'lg:flex-col' : 'lg:flex-row'} gap-6`}>
+    <div className={`w-full mx-auto flex flex-col ${isTheater ? 'lg:flex-col' : 'lg:flex-row'} gap-6`}>
       {/* Left Column: Player + Details */}
       <div className="flex-1 min-w-0 flex flex-col gap-4 sm:gap-5">
         {/* Custom Glass Video Player */}
