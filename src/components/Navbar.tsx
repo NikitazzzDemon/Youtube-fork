@@ -40,12 +40,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 w-full px-2 sm:px-4 py-2.5 sm:py-3 glass-panel border-b border-zinc-500/20 shadow-lg">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Mobile Sidebar Toggle + Brand Logo */}
+        {/* Left: Sidebar Toggle + Brand Logo */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             onClick={toggleSidebar}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition lg:hidden"
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition cursor-pointer"
             aria-label="Toggle Navigation Sidebar"
+            title="Toggle Sidebar"
           >
             <Menu className="w-5 h-5" />
           </button>

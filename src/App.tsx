@@ -14,7 +14,7 @@ import { SubscriptionsView } from './views/SubscriptionsView';
 import { HistoryView } from './views/HistoryView';
 import { SettingsView } from './views/SettingsView';
 import { VideoItem, ChannelDetails } from './types';
-import { X } from 'lucide-react';
+import { X, Maximize2, Sparkles } from 'lucide-react';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<string>('home');
@@ -29,7 +29,12 @@ function AppContent() {
   const [savedVideoIds, setSavedVideoIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1280;
+    }
+    return false;
+  });
   const [isVPSModalOpen, setIsVPSModalOpen] = useState<boolean>(false);
 
   const { activeVideo, playVideo, closeMiniPlayer } = usePlayer();
@@ -104,6 +109,7 @@ function AppContent() {
     setActiveVideoId(video.id);
     playVideo(video);
     setCurrentView('watch');
+    setIsSidebarOpen(false); // Auto-close sidebar on watch page for full width
     // Update URL parameter cleanly without reloading
     window.history.pushState({}, '', `/?watch=${video.id}`);
   };
@@ -156,7 +162,7 @@ function AppContent() {
       />
 
       {/* Main App Layout */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-4 sm:py-6 flex gap-6">
+      <div className="flex-1 max-w-[1700px] w-full mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6 flex justify-center gap-6">
         {/* Sidebar */}
         <Sidebar
           currentView={currentView}
@@ -166,7 +172,7 @@ function AppContent() {
         />
 
         {/* Dynamic View Canvas */}
-        <main className="flex-1 min-w-0 transition-all duration-300">
+        <main className="flex-1 w-full min-w-0 transition-all duration-300">
           {currentView === 'home' && (
             <HomeView
               videos={videos}
@@ -247,21 +253,38 @@ function AppContent() {
 
       {/* Floating Mini Player when navigating away from watch view */}
       {activeVideo && currentView !== 'watch' && (
-        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 w-72 sm:w-80 glass-panel rounded-2xl overflow-hidden shadow-2xl border border-zinc-500/20 p-2 animate-in slide-in-from-bottom-5">
-          <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black">
+        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50 w-72 sm:w-88 glass-panel rounded-2xl overflow-hidden shadow-2xl border border-zinc-500/30 p-2 animate-in slide-in-from-bottom-5">
+          <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black group">
             <video
               src={`/api/stream?id=${activeVideo.id}`}
+              poster={activeVideo.thumbnail}
               autoPlay
               playsInline
               controls
+              onCanPlay={(e) => {
+                e.currentTarget.play().catch(() => {});
+              }}
               className="w-full h-full object-contain"
             />
-            <button
-              onClick={closeMiniPlayer}
-              className="absolute top-2 right-2 p-1 rounded-full bg-black/80 text-white hover:bg-black transition cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition">
+              <button
+                onClick={() => {
+                  setCurrentView('watch');
+                  setActiveVideoId(activeVideo.id);
+                }}
+                className="p-1.5 rounded-full bg-black/80 text-white hover:bg-black transition cursor-pointer"
+                title="Maximize Player"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={closeMiniPlayer}
+                className="p-1.5 rounded-full bg-black/80 text-white hover:bg-black transition cursor-pointer"
+                title="Close Mini Player"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
           <div className="p-2 flex items-center justify-between gap-2">
             <span
@@ -269,11 +292,14 @@ function AppContent() {
                 setCurrentView('watch');
                 setActiveVideoId(activeVideo.id);
               }}
-              className="text-xs font-bold line-clamp-1 cursor-pointer hover:underline"
+              className="text-xs font-extrabold line-clamp-1 cursor-pointer hover:underline flex-1"
             >
               {activeVideo.title}
             </span>
-            <span className="text-[10px] opacity-70 shrink-0 font-mono font-bold">Proxied</span>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] font-bold shrink-0">
+              <Sparkles className="w-3 h-3" />
+              <span>VPS Proxy</span>
+            </div>
           </div>
         </div>
       )}

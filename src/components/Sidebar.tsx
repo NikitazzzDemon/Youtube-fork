@@ -24,29 +24,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
 
   return (
     <>
-      {/* Mobile backdrop overlay */}
+      {/* Mobile/Tablet backdrop overlay with smooth dimming */}
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 xl:hidden transition-opacity duration-300"
         />
       )}
 
       {/* Responsive Sidebar */}
       <aside
         className={`
-          /* Mobile layout drawer */
-          fixed inset-y-0 left-0 top-0 pt-20 pb-6 px-4 z-50 w-64 glass-panel transition-transform duration-300 transform lg:transform-none
-          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          /* Desktop layout sticky column */
-          lg:static lg:z-10 lg:w-64 lg:shrink-0 lg:h-[calc(100vh-8.5rem)] lg:sticky lg:top-28
-          rounded-3xl p-4 flex flex-col justify-between shadow-xl border border-zinc-500/20 overflow-y-auto no-scrollbar
+          /* Mobile & Tablet Drawer (< xl): Fixed overlay on top (z-50) without shifting main layout */
+          fixed inset-y-0 left-0 top-0 pt-20 pb-6 px-4 z-50 w-64 glass-panel transition-all duration-300 transform shadow-2xl
+          ${isOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-full opacity-0 pointer-events-none'}
+          /* Desktop sticky column (≥ xl): In-flow column when open */
+          ${
+            isOpen
+              ? 'xl:static xl:z-10 xl:w-64 xl:shrink-0 xl:opacity-100 xl:transform-none xl:h-[calc(100vh-8.5rem)] xl:sticky xl:top-28 xl:pointer-events-auto'
+              : 'xl:hidden xl:w-0 xl:shrink-0 xl:p-0 xl:m-0 xl:border-0'
+          }
+          rounded-3xl p-4 flex flex-col justify-between border border-zinc-500/20 overflow-y-auto no-scrollbar
         `}
       >
         <div className="flex flex-col gap-5">
-          {/* Mobile Header with Close Button */}
-          <div className="flex items-center justify-between lg:hidden pb-2 border-b border-zinc-500/20">
-            <span className="text-xs font-black uppercase tracking-wider opacity-70">Menu</span>
+          {/* Header with Close Button for Drawer Mode */}
+          <div className="flex items-center justify-between xl:hidden pb-2 border-b border-zinc-500/20">
+            <span className="text-xs font-black uppercase tracking-wider opacity-70">Navigation Menu</span>
             <button onClick={onClose} className="p-1 rounded-full hover:bg-zinc-500/20 transition cursor-pointer">
               <X className="w-4 h-4" />
             </button>

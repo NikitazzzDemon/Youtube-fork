@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, CheckCircle2, Bookmark, Share2, Radio } from 'lucide-react';
+import { Play, CheckCircle2, Bookmark, Share2, Radio, Tv } from 'lucide-react';
 import { VideoItem } from '../types';
 
 interface VideoCardProps {
@@ -18,6 +18,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   isSaved = false,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
 
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -40,13 +42,24 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       className="group relative flex flex-col glass-panel-interactive rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 border border-zinc-500/20"
     >
       {/* Thumbnail Container */}
-      <div className="relative aspect-video w-full overflow-hidden bg-zinc-950">
+      <div className="relative aspect-video w-full overflow-hidden bg-zinc-900/60">
+        {/* Animated Skeleton Loading Placeholder */}
+        {!imageLoaded && (
+          <div className="absolute inset-0 bg-gradient-to-r from-zinc-800/80 via-zinc-700/80 to-zinc-800/80 dark:from-zinc-900 dark:via-zinc-800/90 dark:to-zinc-900 animate-pulse flex items-center justify-center">
+            <Tv className="w-8 h-8 opacity-25 text-zinc-400" />
+          </div>
+        )}
+
         <img
           src={video.thumbnail}
           alt={video.title}
           loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
+          onLoad={() => setImageLoaded(true)}
+          className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
+            imageLoaded ? 'opacity-90 group-hover:opacity-100 scale-100' : 'opacity-0 scale-95'
+          }`}
           onError={(e) => {
+            setImageLoaded(true);
             (e.target as HTMLImageElement).src =
               'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop';
           }}
@@ -81,13 +94,20 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             e.stopPropagation();
             if (onChannelClick) onChannelClick(video.author.id);
           }}
-          className="shrink-0 group/avatar"
+          className="shrink-0 group/avatar relative"
         >
+          {!avatarLoaded && (
+            <div className="w-9 h-9 rounded-full bg-zinc-700/60 animate-pulse absolute inset-0" />
+          )}
           <img
             src={video.author.avatar}
             alt={video.author.name}
-            className="w-9 h-9 rounded-full object-cover border border-zinc-500/40 group-hover/avatar:border-current transition"
+            onLoad={() => setAvatarLoaded(true)}
+            className={`w-9 h-9 rounded-full object-cover border border-zinc-500/40 group-hover/avatar:border-current transition-opacity duration-300 ${
+              avatarLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
             onError={(e) => {
+              setAvatarLoaded(true);
               (e.target as HTMLImageElement).src =
                 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100';
             }}
