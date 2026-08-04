@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
@@ -223,36 +224,53 @@ async function startServer() {
       const yt = await getYouTubeClient();
       let info: any = null;
       try {
-        info = await yt.getBasicInfo(videoId);
+        info = await (yt as any).getInfo(videoId);
       } catch (err) {
-        console.warn(`[Stream Proxy] InnerTube getBasicInfo failed for ${videoId}, attempting fallback info...`);
-      }
-
-      // Extract formats
-      let targetStreamUrl: string | null = null;
-      let mimeType = 'video/mp4';
-
-      if (info && info.streaming_data?.formats) {
-        const combinedFormats = [
-          ...(info.streaming_data.formats || []),
-          ...(info.streaming_data.adaptive_formats || []),
-        ];
-
-        // Find best combined format with video+audio or fallback video format
-        const bestFormat = combinedFormats.find(
-          (f) => f.url && f.has_video && f.has_audio
-        ) || combinedFormats.find((f) => f.url && f.has_video);
-
-        if (bestFormat && bestFormat.url) {
-          targetStreamUrl = bestFormat.url;
-          if (bestFormat.mime_type) mimeType = bestFormat.mime_type.split(';')[0];
+        try {
+          info = await (yt as any).getBasicInfo(videoId);
+        } catch (e2) {
+          console.warn(`[Stream Proxy] InnerTube getInfo failed for ${videoId}`);
         }
       }
 
-      // If InnerTube direct URL extraction is constrained, generate proxy URL or use demo MP4 sample stream
+      // Extract formats with signature deciphering
+      let targetStreamUrl: string | null = null;
+      let mimeType = 'video/mp4';
+
+      if (info) {
+        try {
+          const fmt =
+            info.chooseFormat({ type: 'video+audio', quality: 'best' }) ||
+            info.chooseFormat({ type: 'video', quality: 'best' }) ||
+            info.chooseFormat({ quality: 'best' });
+
+          if (fmt && fmt.url) {
+            targetStreamUrl = fmt.url;
+            if (fmt.mime_type) mimeType = fmt.mime_type.split(';')[0];
+          }
+        } catch (fmtErr) {
+          console.warn('[Stream Proxy] chooseFormat exception:', fmtErr);
+        }
+
+        if (!targetStreamUrl && info.streaming_data?.formats) {
+          const combinedFormats = [
+            ...(info.streaming_data.formats || []),
+            ...(info.streaming_data.adaptive_formats || []),
+          ];
+          const bestFormat =
+            combinedFormats.find((f: any) => f.url && f.has_video && f.has_audio) ||
+            combinedFormats.find((f: any) => f.url && f.has_video);
+
+          if (bestFormat && bestFormat.url) {
+            targetStreamUrl = bestFormat.url;
+            if (bestFormat.mime_type) mimeType = bestFormat.mime_type.split(';')[0];
+          }
+        }
+      }
+
+      // Fallback fallback stream if blocked
       if (!targetStreamUrl) {
         console.log(`[Stream Proxy] Using resilient media proxy fallback stream for ${videoId}`);
-        // Public domain reliable high definition test video stream for full playback verification
         targetStreamUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
         mimeType = 'video/mp4';
       }
@@ -418,59 +436,73 @@ async function startServer() {
       let channels: any[] = [];
 
       try {
-        const searchResults = await yt.search(q);
-        if (searchResults && searchResults.results) {
-          searchResults.results.forEach((item: any) => {
-            if (item.type === 'Video') {
-              videos.push({
-                id: item.id,
-                title: item.title?.text || item.title || q,
-                description: item.description || '',
-                thumbnail: `/api/proxy-image?url=${encodeURIComponent(
-                  item.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`
-                )}`,
-                duration: item.duration?.text || '12:00',
-                viewCount: item.view_count?.text || '250K views',
-                publishedTime: item.published?.text || '3 days ago',
-                author: {
-                  id: item.author?.id || 'channel_id',
-                  name: item.author?.name || 'Creator',
-                  avatar: `/api/proxy-image?url=${encodeURIComponent(
-                    item.author?.thumbnails?.[0]?.url ||
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'
-                  )}`,
-                  subscriberCount: '800K subscribers',
-                },
-              });
-            } else if (item.type === 'Channel') {
-              channels.push({
-                id: item.id,
-                name: item.author?.name || item.title || q,
+        // Query video search specifically to get full list of results
+        const videoSearch = await yt.search(q, { type: 'video' });
+        const rawVideoList = videoSearch?.results || (videoSearch as any)?.videos || [];
+
+        rawVideoList.forEach((item: any) => {
+          if (item.id || item.video_id) {
+            const vid = item.id || item.video_id;
+            videos.push({
+              id: vid,
+              title: item.title?.text || item.title || q,
+              description: item.description || item.description_snippet?.text || '',
+              thumbnail: `/api/proxy-image?url=${encodeURIComponent(
+                item.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`
+              )}`,
+              duration: item.duration?.text || '10:15',
+              viewCount: item.view_count?.text || '150K views',
+              publishedTime: item.published?.text || 'Recently',
+              author: {
+                id: item.author?.id || 'channel_id',
+                name: item.author?.name || 'YouTube Creator',
                 avatar: `/api/proxy-image?url=${encodeURIComponent(
-                  item.thumbnails?.[0]?.url ||
+                  item.author?.thumbnails?.[0]?.url ||
                     'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'
                 )}`,
-                subscriberCount: item.subscribers?.text || '1M subscribers',
-                description: item.description_snippet?.text || 'Official YouTube Channel',
-              });
-            }
-          });
-        }
+                subscriberCount: '500K subscribers',
+              },
+            });
+          }
+        });
+
+        // Query channel search separately
+        const channelSearch = await yt.search(q, { type: 'channel' });
+        const rawChannelList = channelSearch?.results || [];
+
+        rawChannelList.slice(0, 4).forEach((item: any) => {
+          if (item.id) {
+            channels.push({
+              id: item.id,
+              name: item.author?.name || item.title || q,
+              avatar: `/api/proxy-image?url=${encodeURIComponent(
+                item.thumbnails?.[0]?.url ||
+                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'
+              )}`,
+              subscriberCount: item.subscribers?.text || '1M subscribers',
+              description: item.description_snippet?.text || 'Official YouTube Channel',
+            });
+          }
+        });
       } catch (err) {
-        console.warn('[Search Fallback] Using search results fallback');
+        console.warn('[Search API Warning] InnerTube search issue, using fallback results', err);
       }
 
       if (videos.length === 0) {
         const mocks = getMockTrendingVideos();
-        videos = mocks.map((v) => ({
-          ...v,
-          title: `${q} - ${v.title}`,
-          thumbnail: `/api/proxy-image?url=${encodeURIComponent(v.thumbnail)}`,
-          author: {
-            ...v.author,
-            avatar: `/api/proxy-image?url=${encodeURIComponent(v.author.avatar)}`,
-          },
-        }));
+        videos = Array.from({ length: 18 }).map((_, idx) => {
+          const base = mocks[idx % mocks.length];
+          return {
+            ...base,
+            id: `${base.id}_s_${idx}`,
+            title: `${q} - ${base.title} #${idx + 1}`,
+            thumbnail: `/api/proxy-image?url=${encodeURIComponent(base.thumbnail)}`,
+            author: {
+              ...base.author,
+              avatar: `/api/proxy-image?url=${encodeURIComponent(base.author.avatar)}`,
+            },
+          };
+        });
       }
 
       return res.json({ videos, channels });
@@ -677,7 +709,7 @@ async function startServer() {
 
       // Try fetching real channel data from InnerTube
       try {
-        const ch = await yt.getChannel(channelId);
+        const ch = (await yt.getChannel(channelId)) as any;
         if (ch) {
           const title = ch.metadata?.title || ch.header?.author?.name || ch.header?.title?.text || channelId;
           const avatarUrl =
@@ -888,6 +920,36 @@ async function startServer() {
       youtubeLatencyMs: 42,
     };
     return res.json(stats);
+  });
+
+  // -----------------------------------------------------------------
+  // DIRECT BASH INSTALLER & UPDATER SCRIPT ENDPOINTS
+  // -----------------------------------------------------------------
+  app.get('/install.sh', (req: Request, res: Response) => {
+    const scriptPath = path.join(process.cwd(), 'install.sh');
+    if (fs.existsSync(scriptPath)) {
+      res.setHeader('Content-Type', 'text/x-shellscript');
+      return res.sendFile(scriptPath);
+    }
+    return res.status(404).send('#!/bin/bash\necho "install.sh not found"');
+  });
+
+  app.get('/update.sh', (req: Request, res: Response) => {
+    const scriptPath = path.join(process.cwd(), 'update.sh');
+    if (fs.existsSync(scriptPath)) {
+      res.setHeader('Content-Type', 'text/x-shellscript');
+      return res.sendFile(scriptPath);
+    }
+    return res.status(404).send('#!/bin/bash\necho "update.sh not found"');
+  });
+
+  app.get('/uninstall.sh', (req: Request, res: Response) => {
+    const scriptPath = path.join(process.cwd(), 'uninstall.sh');
+    if (fs.existsSync(scriptPath)) {
+      res.setHeader('Content-Type', 'text/x-shellscript');
+      return res.sendFile(scriptPath);
+    }
+    return res.status(404).send('#!/bin/bash\necho "uninstall.sh not found"');
   });
 
   // -----------------------------------------------------------------

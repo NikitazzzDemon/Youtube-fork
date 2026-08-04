@@ -40,6 +40,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isHoveredControls, setIsHoveredControls] = useState(true);
+  const [useEmbed, setUseEmbed] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Stream URL via VPS Proxy
@@ -147,20 +148,34 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         isTheater ? 'aspect-[21/9]' : 'aspect-video'
       }`}
     >
-      {/* HTML5 Video Element */}
-      <video
-        ref={videoRef}
-        src={streamUrl}
-        autoPlay
-        playsInline
-        onTimeUpdate={handleTimeUpdate}
-        onEnded={() => {
-          setIsPlaying(false);
-          if (onEnded) onEnded();
-        }}
-        onClick={togglePlay}
-        className="w-full h-full object-contain cursor-pointer"
-      />
+      {/* HTML5 Video Element or YouTube Embed Player */}
+      {useEmbed ? (
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
+          title={video.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="w-full h-full border-0"
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          src={streamUrl}
+          autoPlay
+          playsInline
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={() => {
+            setIsPlaying(false);
+            if (onEnded) onEnded();
+          }}
+          onError={() => {
+            console.warn('[Player] Proxy stream error, automatically switching to YouTube Embed player fallback...');
+            setUseEmbed(true);
+          }}
+          onClick={togglePlay}
+          className="w-full h-full object-contain cursor-pointer"
+        />
+      )}
 
       {/* Top Overlay Badge (VPS Proxy Indicator) */}
       <div
@@ -173,9 +188,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <span className="font-semibold text-zinc-200 truncate">{video.title}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white text-black backdrop-blur-xl border border-white text-[10px] sm:text-xs font-bold shadow-lg pointer-events-auto shrink-0">
-          <Sparkles className="w-3 h-3 text-black" />
-          <span>{quality}</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setUseEmbed(!useEmbed)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/80 hover:bg-black backdrop-blur-xl border border-zinc-700 text-[10px] sm:text-xs text-white shadow-lg pointer-events-auto cursor-pointer transition"
+            title="Toggle Stream Engine"
+          >
+            <Tv className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span>{useEmbed ? 'YouTube Embed' : 'VPS Proxy'}</span>
+          </button>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white text-black backdrop-blur-xl border border-white text-[10px] sm:text-xs font-bold shadow-lg pointer-events-auto shrink-0">
+            <Sparkles className="w-3 h-3 text-black" />
+            <span>{quality}</span>
+          </div>
         </div>
       </div>
 

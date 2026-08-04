@@ -40,15 +40,23 @@ export const SettingsView: React.FC = () => {
   // Copy states
   const [copiedDocker, setCopiedDocker] = useState(false);
   const [copiedOneLiner, setCopiedOneLiner] = useState(false);
+  const [copiedUpdate, setCopiedUpdate] = useState(false);
   const [copiedUninstall, setCopiedUninstall] = useState(false);
 
   const oneLinerCommand = `curl -fsSL -o /tmp/install.sh ${window.location.origin}/install.sh && sudo bash /tmp/install.sh`;
+  const updateCommand = `curl -fsSL -o /tmp/update.sh ${window.location.origin}/update.sh && sudo bash /tmp/update.sh`;
   const uninstallCommand = `curl -fsSL -o /tmp/uninstall.sh ${window.location.origin}/uninstall.sh && sudo bash /tmp/uninstall.sh`;
 
   const handleCopyOneLiner = () => {
     navigator.clipboard.writeText(oneLinerCommand);
     setCopiedOneLiner(true);
     setTimeout(() => setCopiedOneLiner(false), 2000);
+  };
+
+  const handleCopyUpdate = () => {
+    navigator.clipboard.writeText(updateCommand);
+    setCopiedUpdate(true);
+    setTimeout(() => setCopiedUpdate(false), 2000);
   };
 
   const handleCopyUninstall = () => {
@@ -411,7 +419,41 @@ services:
             </div>
           </GlassCard>
 
-          {/* Docker Compose Deploy Snippet */}
+          {/* 1-Step Safe Updater (Zero Data Loss) */}
+          <GlassCard className="!p-4 sm:!p-6 border border-cyan-500/30 bg-cyan-500/5 flex flex-col gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-cyan-500 dark:text-cyan-400">
+                <Zap className="w-4 h-4 fill-cyan-500" />
+                <span>1-Step Safe Updater (Zero Data Loss)</span>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30">
+                Preserves Users, History & Subscriptions
+              </span>
+            </div>
+
+            <p className="text-xs opacity-90 leading-relaxed font-medium">
+              Run this command on your VPS server to update GlassTube to the latest build. Your database and files in <code className="px-1.5 py-0.5 rounded font-mono glass-panel">/opt/glasstube/data</code> and <code className="px-1.5 py-0.5 rounded font-mono glass-panel">.env</code> will be <strong>100% preserved</strong> without any data loss. Alternatively, re-running <code className="px-1.5 py-0.5 rounded font-mono glass-panel">install.sh</code> will automatically offer the Safe Update mode!
+            </p>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-[11px] font-bold text-cyan-500 dark:text-cyan-400">
+                Run Update Command on VPS Terminal:
+              </span>
+              <PillButton
+                onClick={handleCopyUpdate}
+                size="sm"
+                active
+                icon={copiedUpdate ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                className="!px-3.5 !py-2 text-xs font-bold shrink-0 text-cyan-400 border-cyan-500/30"
+              >
+                {copiedUpdate ? 'Copied Update Command' : 'Copy Update Command'}
+              </PillButton>
+            </div>
+
+            <pre className="p-3.5 sm:p-4 rounded-2xl bg-black/90 text-cyan-300 text-[11px] font-mono overflow-x-auto border border-cyan-500/30 shadow-inner">
+              {updateCommand}
+            </pre>
+          </GlassCard>
           <GlassCard className="!p-4 sm:!p-6 border border-zinc-500/20 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
