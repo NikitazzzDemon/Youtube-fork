@@ -26,6 +26,12 @@ export const SearchView: React.FC<SearchViewProps> = ({
   savedVideoIds,
   onToggleSave,
 }) => {
+  const [visibleCount, setVisibleCount] = React.useState<number>(12);
+
+  React.useEffect(() => {
+    setVisibleCount(12);
+  }, [query, videos]);
+
   return (
     <div className="flex flex-col gap-5">
       <GlassCard className="!p-4 sm:!p-5 border border-zinc-500/20 flex items-center justify-between">
@@ -82,17 +88,30 @@ export const SearchView: React.FC<SearchViewProps> = ({
         ) : videos.length === 0 ? (
           <div className="py-12 text-center glass-panel rounded-3xl border border-zinc-500/20 text-xs sm:text-sm">No results found.</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
-            {videos.map((video) => (
-              <VideoCard
-                key={video.id}
-                video={video}
-                onSelect={onSelectVideo}
-                onChannelClick={onSelectChannel}
-                onToggleSave={onToggleSave}
-                isSaved={savedVideoIds.includes(video.id)}
-              />
-            ))}
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+              {videos.slice(0, visibleCount).map((video) => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  onSelect={onSelectVideo}
+                  onChannelClick={onSelectChannel}
+                  onToggleSave={onToggleSave}
+                  isSaved={savedVideoIds.includes(video.id)}
+                />
+              ))}
+            </div>
+
+            {visibleCount < videos.length && (
+              <div className="flex justify-center my-4">
+                <button
+                  onClick={() => setVisibleCount((prev) => prev + 12)}
+                  className="px-8 py-3 rounded-full neu-pill-active text-sm font-extrabold shadow-lg cursor-pointer transition active:scale-95"
+                >
+                  Загрузить ещё (+{Math.min(12, videos.length - visibleCount)})
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

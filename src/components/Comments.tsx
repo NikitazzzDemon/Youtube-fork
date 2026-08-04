@@ -51,34 +51,40 @@ export const Comments: React.FC<CommentsProps> = ({ comments, onAddComment }) =>
 
       {/* Comments List */}
       <div className="flex flex-col gap-2.5 mt-1">
-        {comments.map((comment) => (
-          <GlassCard key={comment.id} className="!p-3 sm:!p-4 !rounded-2xl border border-zinc-500/20">
-            <div className="flex items-start gap-2.5">
-              <img
-                src={comment.avatar}
-                alt={comment.author}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-zinc-500/30 shrink-0"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
-                }}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold">{comment.author}</span>
-                  <span className="text-[10px] opacity-60">{comment.publishedTime}</span>
-                </div>
-                <p className="mt-1 text-xs sm:text-sm leading-relaxed font-medium opacity-90">{comment.text}</p>
-                <div className="mt-2 flex items-center gap-3 text-xs opacity-70">
-                  <button className="flex items-center gap-1 hover:opacity-100 transition font-semibold cursor-pointer">
-                    <ThumbsUp className="w-3 h-3" />
-                    <span className="text-[11px]">{comment.likeCount || 0}</span>
-                  </button>
+        {comments.length === 0 ? (
+          <GlassCard className="!p-6 text-center text-xs opacity-70 font-medium rounded-2xl border border-zinc-500/20">
+            Комментарии к этому видео отсутствуют или отключены на YouTube.
+          </GlassCard>
+        ) : (
+          comments.map((comment) => (
+            <GlassCard key={comment.id} className="!p-3 sm:!p-4 !rounded-2xl border border-zinc-500/20">
+              <div className="flex items-start gap-2.5">
+                <img
+                  src={comment.avatar}
+                  alt={comment.author}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-zinc-500/30 shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold">{comment.author}</span>
+                    <span className="text-[10px] opacity-60">{comment.publishedTime}</span>
+                  </div>
+                  <p className="mt-1 text-xs sm:text-sm leading-relaxed font-medium opacity-90">{comment.text}</p>
+                  <div className="mt-2 flex items-center gap-3 text-xs opacity-70">
+                    <button className="flex items-center gap-1 hover:opacity-100 transition font-semibold cursor-pointer">
+                      <ThumbsUp className="w-3 h-3" />
+                      <span className="text-[11px]">{comment.likeCount || 0}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </GlassCard>
-        ))}
+            </GlassCard>
+          ))
+        )}
       </div>
     </div>
   );

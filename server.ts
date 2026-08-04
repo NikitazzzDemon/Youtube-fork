@@ -237,12 +237,21 @@ async function startServer() {
       let targetStreamUrl: string | null = null;
       let mimeType = 'video/mp4';
 
+      const safeChooseFormat = (infoObj: any, opts: any) => {
+        try {
+          return infoObj.chooseFormat(opts);
+        } catch {
+          return null;
+        }
+      };
+
       if (info) {
         try {
           const fmt =
-            info.chooseFormat({ type: 'video+audio', quality: 'best' }) ||
-            info.chooseFormat({ type: 'video', quality: 'best' }) ||
-            info.chooseFormat({ quality: 'best' });
+            safeChooseFormat(info, { type: 'video+audio', quality: 'best' }) ||
+            safeChooseFormat(info, { type: 'video', quality: 'best' }) ||
+            safeChooseFormat(info, { type: 'any', quality: 'best' }) ||
+            safeChooseFormat(info, { quality: 'best' });
 
           if (fmt && fmt.url) {
             targetStreamUrl = fmt.url;
@@ -252,14 +261,15 @@ async function startServer() {
           console.warn('[Stream Proxy] chooseFormat exception:', fmtErr);
         }
 
-        if (!targetStreamUrl && info.streaming_data?.formats) {
+        if (!targetStreamUrl && info.streaming_data) {
           const combinedFormats = [
             ...(info.streaming_data.formats || []),
             ...(info.streaming_data.adaptive_formats || []),
           ];
           const bestFormat =
             combinedFormats.find((f: any) => f.url && f.has_video && f.has_audio) ||
-            combinedFormats.find((f: any) => f.url && f.has_video);
+            combinedFormats.find((f: any) => f.url && f.has_video) ||
+            combinedFormats.find((f: any) => f.url);
 
           if (bestFormat && bestFormat.url) {
             targetStreamUrl = bestFormat.url;
@@ -736,65 +746,13 @@ async function startServer() {
       }
 
       if (comments.length === 0) {
-        comments = [
-          {
-            id: 'mock_c1',
-            author: 'GlassTube Streamer',
-            avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'),
-            text: 'Streamed smoothly through VPS proxy! High quality audio and no ad interruptions.',
-            publishedTime: '2 hours ago',
-            likeCount: '142',
-          },
-          {
-            id: 'mock_c2',
-            author: 'Aesthetic Chill',
-            avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100'),
-            text: 'This video mix is absolute perfection! Perfect background music for coding and studying.',
-            publishedTime: '5 hours ago',
-            likeCount: '89',
-          },
-          {
-            id: 'mock_c3',
-            author: 'Tech Enthusiast',
-            avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'),
-            text: 'Love the minimalist glassmorphic design and dark mode switch!',
-            publishedTime: '1 day ago',
-            likeCount: '48',
-          },
-          {
-            id: 'mock_c4',
-            author: 'Night Owl Listener',
-            avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100'),
-            text: 'Listening to this late at night while working. Smooth vibes!',
-            publishedTime: '2 days ago',
-            likeCount: '34',
-          },
-          {
-            id: 'mock_c5',
-            author: 'Cyberpunk Dev',
-            avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100'),
-            text: 'VPS proxy streaming works flawlessly on high bitrate settings.',
-            publishedTime: '3 days ago',
-            likeCount: '27',
-          },
-        ];
+        comments = [];
       }
 
       return res.json({ comments });
     } catch (e: any) {
       console.error('[Comments API Error]', e);
-      return res.json({
-        comments: [
-          {
-            id: 'mock_fallback',
-            author: 'GlassTube User',
-            avatar: '/api/proxy-image?url=' + encodeURIComponent('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'),
-            text: 'Comments loaded via proxy fallback.',
-            publishedTime: 'Just now',
-            likeCount: '15',
-          },
-        ],
-      });
+      return res.json({ comments: [] });
     }
   });
 
@@ -838,12 +796,27 @@ async function startServer() {
             isSubscribed: false,
           };
 
-          // Attempt to get videos tab directly
+          // Attempt to get videos tab directly with continuation for full video list
           let rawVideos: any[] = [];
           try {
-            const videosTab = await ch.getVideos();
+            let videosTab = await ch.getVideos();
             if (videosTab && (videosTab.videos || videosTab.contents)) {
               rawVideos = videosTab.videos || videosTab.contents || [];
+              let pages = 0;
+              while (videosTab.has_continuation && rawVideos.length < 200 && pages < 12) {
+                try {
+                  videosTab = await videosTab.getContinuation();
+                  const nextItems = videosTab.videos || videosTab.contents || [];
+                  if (nextItems.length > 0) {
+                    rawVideos = [...rawVideos, ...nextItems];
+                  } else {
+                    break;
+                  }
+                  pages++;
+                } catch {
+                  break;
+                }
+              }
             }
           } catch (vErr) {
             rawVideos = ch.videos || ch.current_tab?.content?.contents || [];
@@ -851,7 +824,7 @@ async function startServer() {
 
           if (Array.isArray(rawVideos) && rawVideos.length > 0) {
             channelVideos = rawVideos
-              .filter((v: any) => v.id || v.video_id)
+              .filter((v: any) => v && (v.id || v.video_id))
               .map((v: any) => {
                 const vid = v.id || v.video_id;
                 return {
@@ -877,8 +850,8 @@ async function startServer() {
         console.warn(`[Channel API] Innertube getChannel warning for ${channelId}, using search fallback`);
       }
 
-      // If channel videos count is small, supplement with channel search to get 30+ videos
-      if (channelVideos.length < 24) {
+      // If channel videos count is 0, supplement with channel search to get fallback videos
+      if (channelVideos.length === 0) {
         let channelQuery = channelId;
         if (channelDetails?.name) {
           channelQuery = channelDetails.name;
@@ -914,25 +887,37 @@ async function startServer() {
             const existingIds = new Set(channelVideos.map((v) => v.id));
             searchRes.results.forEach((v: any) => {
               if (v.id && !existingIds.has(v.id)) {
-                existingIds.add(v.id);
-                channelVideos.push({
-                  id: v.id,
-                  title: v.title?.text || v.title || `${channelQuery} Video`,
-                  description: v.description || '',
-                  thumbnail: `/api/proxy-image?url=${encodeURIComponent(
-                    v.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`
-                  )}`,
-                  duration: v.duration?.text || '12:30',
-                  viewCount: v.view_count?.text || '180K views',
-                  publishedTime: v.published?.text || 'Recently',
-                  author: {
-                    id: v.author?.id || channelId,
-                    name: v.author?.name || channelDetails?.name || channelQuery,
-                    avatar: `/api/proxy-image?url=${encodeURIComponent(
-                      v.author?.thumbnails?.[0]?.url || channelDetails?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
+                const vAuthorId = v.author?.id;
+                const vAuthorName = v.author?.name?.toLowerCase() || '';
+                const targetName = (channelDetails?.name || channelQuery).toLowerCase();
+
+                const matchesAuthor =
+                  !vAuthorId ||
+                  vAuthorId === channelId ||
+                  vAuthorName.includes(targetName) ||
+                  targetName.includes(vAuthorName);
+
+                if (matchesAuthor) {
+                  existingIds.add(v.id);
+                  channelVideos.push({
+                    id: v.id,
+                    title: v.title?.text || v.title || `${channelQuery} Video`,
+                    description: v.description || '',
+                    thumbnail: `/api/proxy-image?url=${encodeURIComponent(
+                      v.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`
                     )}`,
-                  },
-                });
+                    duration: v.duration?.text || '12:30',
+                    viewCount: v.view_count?.text || '180K views',
+                    publishedTime: v.published?.text || 'Recently',
+                    author: {
+                      id: channelId,
+                      name: channelDetails?.name || channelQuery,
+                      avatar:
+                        channelDetails?.avatar ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+                    },
+                  });
+                }
               }
             });
           }

@@ -22,11 +22,13 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
   const { user, setIsAuthModalOpen } = useAuth();
   const [channel, setChannel] = useState<ChannelDetails | null>(null);
   const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [visibleCount, setVisibleCount] = useState<number>(12);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setVisibleCount(12);
 
     async function fetchChannelData() {
       try {
@@ -135,13 +137,20 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
 
       {/* Videos Section */}
       <div className="flex flex-col gap-3 mt-2">
-        <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-          <Video className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
-          <span>Channel Videos ({videos.length})</span>
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+            <Video className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+            <span>Видео канала ({videos.length})</span>
+          </h2>
+          {videos.length > 0 && (
+            <span className="text-xs font-semibold opacity-60">
+              Показано {Math.min(visibleCount, videos.length)} из {videos.length}
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
-          {videos.map((video) => (
+          {videos.slice(0, visibleCount).map((video) => (
             <VideoCard
               key={video.id}
               video={video}
@@ -151,6 +160,18 @@ export const ChannelView: React.FC<ChannelViewProps> = ({
             />
           ))}
         </div>
+
+        {visibleCount < videos.length && (
+          <div className="flex justify-center mt-6 mb-4">
+            <PillButton
+              onClick={() => setVisibleCount((prev) => prev + 12)}
+              size="lg"
+              className="!px-8 !py-3 text-sm font-bold shadow-lg cursor-pointer transition active:scale-95"
+            >
+              Загрузить ещё (+{Math.min(12, videos.length - visibleCount)})
+            </PillButton>
+          </div>
+        )}
       </div>
     </div>
   );
